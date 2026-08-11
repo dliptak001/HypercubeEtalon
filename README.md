@@ -16,11 +16,17 @@ every rotation index `r = 0 .. N-1`:
 1. Scale the field once in place: `x *= input_scaling`.
 2. For each rotation `r`, copy that scaled field onto the vertices
    (`state = x`), then run a forward then reverse in-place pass. At each
-   vertex the update is a weighted sum of hypercube neighbors, then `tan`.
-   The visit order is the standard index order XOR-translated by `r`, so
-   each `r` is the same local rule seen from a different group translate
-   on the cube.
-3. Write `output[r] = state[r]` after that pair of passes.
+   vertex the update is a weighted sum over the full hypercube neighbor star
+   (all `dim` axes), then `tanh`. Visit order is the standard index order
+   XOR-translated by `r` (same local rule from each group translate).
+
+   - **Forward:** `v = 0 .. N-1` (last write is the logical antipode `v = N-1`,
+     physical site `(N-1) xor r`).
+   - **Reverse:** `v = N-2 .. 0` — turnaround after the forward endpoint; do
+     not re-update `v = N-1` on entry into the return leg.
+
+3. Write `output[r] = state[r]` after that pair of passes (value at the frame
+   origin after the return leg).
 
 The result is a length-N vector: one excitation sample per rotation.
 
@@ -35,11 +41,15 @@ time-stepping reservoir in the usual ESN sense.
 ## API sketch
 
 ```text
-ExciterConfig cfg;          // dim, seed, input_scaling, weight_scaling
+ExciterConfig cfg;          // dim in [4, 10], seed, input_scaling, weight_scaling
 auto exc = Exciter::Create(cfg);
 const float* y = exc->ExciteCube(x);   // x, y length N = exc->Size()
 ```
 
-`x` is scaled in place (length N) and must not alias the exciter's internal
-buffers. The returned pointer is into the exciter and is invalidated by the
-next `ExciteCube` or destruction.
+### Contracts
+
+- `x` non-null, length exactly `N = 2^dim`.
+- `x` is scaled in place; a second call on the same buffer scales again.
+- `x` must not alias the exciter's internal buffers.
+- Returned pointer is into the exciter; invalid after the next `ExciteCube` or
+  destruction.

@@ -8,22 +8,20 @@
 /// @brief Construction-time parameters for @ref Exciter.
 struct ExciterConfig
 {
-    /// Hypercube dimension; neuron count N = 2^dim. Valid range **[4, 16]**.
-    size_t dim = 10;
+    /// Hypercube dimension; neuron count N = 2^dim. Valid range **[4, 10]**.
+    size_t dim = 8;
 
     /// Master RNG seed for neighbor weight draws.
     uint64_t seed = 7934791766227647176;
 
-    /// Scalar gain when loading the input field onto the vertices.
+    /// Scalar gain applied once in place to the input field in @ref ExciteCube.
     float input_scaling = 0.02f;
 
     /// Scale on neighbor weight draws: U(-1,1) × weight_scaling.
     float weight_scaling = 0.02f;
-
-    /// If true, print one construction banner.
-    bool verbose = false;
 };
 
+/// Hypercube field exciter: fixed neighbor weights, XOR-rotated F/B sweeps.
 class Exciter
 {
 public:
@@ -37,11 +35,11 @@ public:
     Exciter(const Exciter&) = delete;
     Exciter& operator=(const Exciter&) = delete;
 
-    /// Scale @p input_field in place by input_scaling, then for each rotation
-    /// reload state from that scaled field, run F/B, write output[r].
-    /// @p input_field length N; remains scaled on return.
-    /// Returned pointer valid until next ExciteCube/destroy.
-    const float* ExciteCube(float* input_field);
+    /// Scale @p input_field in place by input_scaling; per rotation reload
+    /// state, run F/B, write output[r]. Length must be Size(); non-null;
+    /// must not alias internals. Re-calling on same buffer scales again.
+    /// @return length-N output; valid until next ExciteCube or destroy.
+    [[nodiscard]] const float* ExciteCube(float* input_field);
 
     [[nodiscard]] ExciterConfig GetConfig() const;
 
@@ -62,9 +60,8 @@ private:
     std::vector<float> output_;
     std::vector<float> weight_; ///< neighbor: N · dim
 
-    float input_scaling_ = 0.5f;
+    float input_scaling_ = 0.02f;
     float weight_scaling_ = 0.02f;
-    bool verbose_ = false;
 
     void Initialize();
     float ExciteRotation(size_t v_rotation);
