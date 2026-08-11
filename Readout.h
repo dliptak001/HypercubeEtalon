@@ -108,8 +108,9 @@ struct ReadoutConfig
 
     /// HCNN internal worker-pool size. Forwarded to `hcnn::HCNN`:
     /// 0 = auto (default), 1 = single-threaded (no HCNN background workers),
-    /// N > 1 = N workers. Use 1 when the host already parallelizes across ESN
-    /// instances (e.g. a multi-seed survey) to avoid nested oversubscription.
+    /// N > 1 = N workers. Use 1 when the host already parallelizes across
+    /// Exciter / Readout instances (e.g. a multi-seed survey) to avoid nested
+    /// oversubscription.
     size_t num_threads = 0;
 
     /// After each batch @ref Readout::Train epoch, score a metric and at the end
@@ -125,29 +126,31 @@ struct ReadoutConfig
     float best_epoch_holdout_frac = 0.0f;
 };
 
-/// @brief The **trainable half of an @ref ESN**: a small convolutional network
-/// (CNN) that maps one reservoir state — N = 2^dim floats — to the task output.
+/// @brief Trainable HypercubeCNN façade: maps one length-N field (N = 2^dim)
+/// to task outputs (regression vector or class logits).
 ///
-/// In an ESN the reservoir is fixed and only the readout learns (see @ref ESN
-/// for the whole picture). This class *is* that learner. Each timestep it takes
-/// the reservoir's N-number state as its input and produces either a regression
-/// vector or class logits, depending on the @ref ReadoutTask chosen at construction.
+/// In HypercubeEtalon the typical input is an **@ref Exciter** bank output —
+/// one excitation sample per XOR rotation, still length N. The Exciter is
+/// frozen; only this readout learns. The same façade works on any length-N
+/// hypercube field the host supplies (raw pack, excitation, etc.).
 ///
 /// ## Data path
 /// ```
-///   state[N] ──▶ Embed ──▶ [ Conv + Pool ] × L ──▶ Flatten ──▶ Linear ──▶ output
+///   field[N] ──▶ Embed ──▶ [ Conv + Pool ] × L ──▶ Flatten ──▶ Linear ──▶ output
 ///                          channels grow by channel_growth each layer
 /// ```
 /// The stack is built via HypercubeCNN's architecture product (`LayerSpec` /
 /// `HCNNConfig`) from @c dim: by default L = min(dim - 2, 2) Conv(+Pool) stages
 /// (override with @ref ReadoutConfig::num_layers), the first conv using
-/// @ref ReadoutConfig::conv_channels channels.
+/// @ref ReadoutConfig::conv_channels channels. Prefer @c dim >= 5 so the
+/// default pooled stack has room (asserted at build time).
 ///
 /// ## Lifecycle
 /// Pick a training path:
-///   - **Batch** — collect a set of states, then @ref Train once over all of them.
-///   - **Streaming / online** — interleave @ref TrainStep (one state) or
-///     @ref TrainStepBatch (a mini-batch) with whatever drives the reservoir.
+///   - **Batch** — collect a set of fields, then @ref Train once over all of them.
+///   - **Streaming / online** — interleave @ref TrainStep (one field) or
+///     @ref TrainStepBatch (a mini-batch) with whatever produces the features
+///     (e.g. @ref Exciter::ExciteCube).
 ///
 /// Then @ref PredictRaw / @ref PredictClass to use it, and @ref R2 / @ref Accuracy
 /// to score it. Save and reload the learned weights with @ref Weights / @ref SetState.
@@ -179,8 +182,8 @@ public:
 
     // ----- Streaming training -----
     //
-    // One gradient step at a time, interleaved with whatever drives the
-    // reservoir. Overloads are task-typed (no float class indices).
+    // One gradient step at a time, interleaved with feature production
+    // (Exciter, packer, etc.). Overloads are task-typed (no float class indices).
 
     /// @brief One regression step. @p target is num_outputs floats.
     /// @throws std::logic_error if task is Classification.
@@ -231,7 +234,7 @@ public:
 
     /// @brief Size of one prediction: regression targets, or number of classes.
     [[nodiscard]] size_t NumOutputs() const { return num_outputs_; }
-    /// @brief Length of the input state vector the network expects, N = 2^dim.
+    /// @brief Length of the input field the network expects, N = 2^dim.
     [[nodiscard]] size_t NumFeatures() const { return num_features_; }
     /// @brief Always true — reports that the network exists and has weights worth
     /// persisting (the net_ invariant), not "has been fed training data".
@@ -263,7 +266,7 @@ public:
     /// Arch sidecar format version written by @ref SaveHcnnModel (`.arch.json`).
     static constexpr int kArchSidecarVersion = 1;
 
-    /// @brief Write HypercubeCNN-native weights + ESN arch sidecar:
+    /// @brief Write HypercubeCNN-native weights + arch sidecar:
     ///   `@p path_stem.hcnw`     — versioned HCNW (via `hcnn::save_weights`)
     ///   `@p path_stem.arch.json` — architecture knobs + expanded layer list
     /// Pass a path **without** extension (e.g. `"out/readout"`).

@@ -14,7 +14,7 @@ endif()
 # --- HypercubeCNN (vendored core; see third_party/HypercubeCNN/VENDORED.md) ---
 add_subdirectory(third_party/HypercubeCNN)
 
-# Shared compile / link flags (host + vendored core)
+# Shared compile / link flags (host core + demos)
 add_library(etalon_compile_flags INTERFACE)
 target_compile_options(etalon_compile_flags INTERFACE
     $<$<CONFIG:Release>:-O3 -march=x86-64-v2 -ffast-math>
@@ -31,19 +31,32 @@ endif()
 # Match host Release/Debug options on the vendored static library.
 target_link_libraries(HypercubeCNNCore PRIVATE etalon_compile_flags)
 
-add_executable(HypercubeEtalon
-    main.cpp
+# --- Host core: Exciter + Readout + Etalon product façade ---
+add_library(HypercubeEtalonCore STATIC
     Exciter.cpp
+    Readout.cpp
+    Etalon.cpp
+)
+add_library(HypercubeEtalon::Core ALIAS HypercubeEtalonCore)
+
+target_include_directories(HypercubeEtalonCore
+    PUBLIC
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
 )
 
-target_include_directories(HypercubeEtalon
-    PRIVATE
-        ${PROJECT_SOURCE_DIR}
+target_link_libraries(HypercubeEtalonCore
+    PUBLIC  HypercubeCNNCore
+    PRIVATE etalon_compile_flags
+)
+
+# --- Smoke executable ---
+add_executable(HypercubeEtalon
+    main.cpp
 )
 
 target_link_libraries(HypercubeEtalon
     PRIVATE
-        HypercubeCNNCore
+        HypercubeEtalonCore
         etalon_compile_flags
 )
 

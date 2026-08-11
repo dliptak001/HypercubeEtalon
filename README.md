@@ -1,11 +1,12 @@
 # HypercubeEtalon
 
 Experiment: map a length-N field on the Boolean hypercube through a bank of
-XOR-rotated nonlinear sweeps, and collect one scalar per rotation.
+XOR-rotated nonlinear sweeps, and train a HypercubeCNN readout on the result.
 
 Vendored **HypercubeCNN** (Apache-2.0 core) lives under
-`third_party/HypercubeCNN/` — see that tree’s `VENDORED.md`. The host CMake
-builds `HypercubeCNNCore` and links it into the `HypercubeEtalon` target.
+`third_party/HypercubeCNN/` — see that tree’s `VENDORED.md`. Host CMake builds
+`HypercubeCNNCore` and **`HypercubeEtalonCore`** (`Exciter` + `Readout` +
+product façade `Etalon`).
 
 ## Idea
 
@@ -42,18 +43,61 @@ IC, not the wreckage of the previous rotation. There is no delay line, no
 spectral-radius retune, no learned input matrix, and no leak; this is not a
 time-stepping reservoir in the usual ESN sense.
 
-## API sketch
+## Product API (`Etalon`)
+
+Public entry point is **`Etalon`**: frozen Exciter + trainable Readout.
 
 ```text
-ExciterConfig cfg;          // dim in [4, 10], seed, input_scaling, weight_scaling
-auto exc = Exciter::Create(cfg);
-const float* y = exc->ExciteCube(x);   // x, y length N = exc->Size()
+EtalonConfig cfg;
+cfg.exciter.dim = 5;                 // N = 32; prefer dim >= 5 for readout stacks
+cfg.exciter.input_scaling = 1.0f;
+cfg.exciter.weight_scaling = 0.5f;
+cfg.readout.dim = 0;                 // auto = exciter.dim
+cfg.readout.num_outputs = 2;
+cfg.readout.task = ReadoutTask::Classification;
+
+Etalon et(cfg);
+et.Collect(field, class_label);      // map field → features, append
+et.TrainOnCollected();
+int cls = et.PredictClass(field);    // fresh map + argmax (no collect noise)
 ```
 
-### Contracts
+Pipeline:
 
-- `x` non-null, length exactly `N = 2^dim`.
-- `x` is scaled in place; a second call on the same buffer scales again.
-- `x` must not alias the exciter's internal buffers.
-- Returned pointer is into the exciter; invalid after the next `ExciteCube` or
-  destruction.
+```text
+x[N]  →  [optional collect-only noise]  →  Exciter  →  y[N]  →  Readout
+                                         (or bypass: y = x)
+```
+
+| Method | Role |
+|--------|------|
+| `Run` | Field → features; updates `LastFeatures`; no train noise |
+| `Collect` / `CollectBatch` | Map + append to training set (optional noise) |
+| `TrainOnCollected` | Batch-train the readout on collected features |
+| `Predict` / `PredictClass` | Fresh map + forward (no train noise) |
+| `AccuracyOnCollected` / `R2OnCollected` | Metrics on the **training** set |
+| `ClearCollected` | Drop the training buffer |
+
+Callers’ field buffers are **never** mutated (`ExciteCube` scales a private copy).
+
+Optional product knobs on `EtalonConfig`:
+
+- `bypass_exciter` — features = field (ablation baseline)
+- `train_input_noise_sigma` / `noise_seed` — collect-only Gaussian noise
+
+### Not carried over from HypercubeWTF
+
+No reservoir orbit (`T`), delay-line packing (`B`/`M`), episode IC (`s0`), or
+parallel collect pool. One map is one Exciter bank pass; features are always
+length N.
+
+### Lower-level pieces
+
+`Exciter` and `Readout` remain usable directly when you do not want the façade.
+
+**Exciter contracts:** length-N non-null field; scales **in place**; return
+pointer is owned by the Exciter and invalid after the next `ExciteCube`.
+
+**Readout contracts:** input length `2^dim` (prefer `dim >= 5`); `Train`
+continues from current weights; prefer `SaveHcnnModel` over the unversioned
+`Weights` blob for portable checkpoints.

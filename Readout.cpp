@@ -369,8 +369,8 @@ double Readout::R2(const float* states, const float* targets,
     const size_t K = num_outputs_;
     const int n_samples = static_cast<int>(num_samples);
 
-    // Batch forward once (multi-output R² is ESN's product metric: average of
-    // per-output R² — not HypercubeCNN's global MSE/variance helper).
+    // Batch forward once (multi-output R²: average of per-output R² —
+    // not HypercubeCNN's global MSE/variance helper).
     std::vector<float> preds(num_samples * K);
     net_->ForwardBatch(states, n, n_samples, preds.data());
 
