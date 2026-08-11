@@ -13,7 +13,7 @@ int main() {
     field[0] = 1.0f;
 
     res->InjectInputField(field.data(), field.size());
-    res->ComputeOutputs();
+    res->ExciteCube();
 
     std::cout << "HypercubeEtalon  N=" << res->Size()
               << "  out[0]=" << res->Outputs()[0] << '\n';

@@ -47,7 +47,8 @@ static inline uint64_t mix64(uint64_t x)
 }
 
 // Named substreams (values kept stable vs historical WTF roles where reused).
-enum class SeedRole : uint64_t {
+enum class SeedRole : uint64_t
+{
     Recurrent = 1
 };
 
@@ -57,7 +58,8 @@ enum class SeedRole : uint64_t {
 
 void Reservoir::Initialize()
 {
-    auto seed_for = [this](SeedRole r) {
+    auto seed_for = [this](SeedRole r)
+    {
         return mix64(rng_seed_ ^ (0x100000001B3ULL * static_cast<uint64_t>(r)));
     };
     std::mt19937_64 rng(seed_for(SeedRole::Recurrent));
@@ -82,25 +84,44 @@ void Reservoir::Initialize()
 // Dynamics
 // ---------------------------------------------------------------------------
 
-void Reservoir::ComputeOutputs()
+void Reservoir::ExciteCube()
 {
     for (size_t v = 0; v < n_; ++v)
     {
-        // TODO overwrite state_ with scaled input_
+        for (size_t i = 0; i < n_; i++)
+            state_[i] = input_[i] * input_scaling_;
 
-        output_[v] = ReflectionPass(v);
+        output_[v] = ExciteRotation(v);
     }
 }
 
-float Reservoir::ReflectionPass(const size_t v)
+float Reservoir::ExciteRotation(const size_t v_rotation)
 {
-    float s = 0.0f;
-    const float* w = weight_.data() + v * dim_;
+    const auto n = static_cast<int64_t>(n_);
 
-    for (size_t j = 0; j < dim_; ++j)
-        s += state_[v ^ NearestMask(j)] * w[j];
+    // forward
+    for (int64_t v = 0; v < n; ++v)
+    {
+        float s = 0.0f;
+        const float* w = weight_.data() + (v ^ v_rotation) * dim_;
+        for (size_t j = 1; j < dim_; ++j)
+            s += state_[v ^ v_rotation ^ NearestMask(j)] * w[j];
 
-    return std::tanh(s);
+        state_[v ^ v_rotation] = std::tan(s);
+    }
+
+    // reverse
+    for (int64_t v = n - 1; v >= 0; --v)
+    {
+        float s = 0.0f;
+        const float* w = weight_.data() + (v ^ v_rotation) * dim_;
+        for (size_t j = 0; j < dim_; ++j)
+            s += state_[v ^ v_rotation ^ NearestMask(j)] * w[j];
+
+        state_[v ^ v_rotation] = std::tan(s);
+    }
+
+    return state_[v_rotation];
 }
 
 // ---------------------------------------------------------------------------

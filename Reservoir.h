@@ -29,13 +29,12 @@ struct ReservoirConfig
 /// Hypercube topology, single live state, recurrent neighbor gather only.
 /// No learned input weights: staged drive is @c input_scaling * field[v].
 ///
-/// Per-step contract:
+/// Typical contract:
 /// ```
 ///   InjectInputField(x, N);
-///   Step();
+///   ExciteCube();
 ///   // read Outputs()
 /// ```
-/// Staged input is consumed and zeroed by every @ref Step.
 ///
 /// Non-copyable; obtain instances only via @ref Create.
 class Reservoir
@@ -51,11 +50,9 @@ public:
     Reservoir(const Reservoir&) = delete;
     Reservoir& operator=(const Reservoir&) = delete;
 
-    /// Compute reflection outputs over vertices 0..N-1 into @c output_.
-    /// TODO: overwrite state_ with scaled input_ before the reflection pass.
-    void ComputeOutputs();
+    void ExciteCube();
 
-    /// Stage a full length-N input field for the next @ref ComputeOutputs.
+    /// Stage a full length-N input field for the next @ref ExciteCube.
     /// @throws std::invalid_argument if @p count != N or @p field is null.
     void InjectInputField(const float* field, size_t count);
 
@@ -98,5 +95,5 @@ private:
     bool verbose_ = false;
 
     void Initialize();
-    float ReflectionPass(size_t v);
+    float ExciteRotation(size_t v_rotation);
 };
