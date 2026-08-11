@@ -3,6 +3,10 @@
 Experiment: map a length-N field on the Boolean hypercube through a bank of
 XOR-rotated nonlinear sweeps, and collect one scalar per rotation.
 
+Vendored **HypercubeCNN** (Apache-2.0 core) lives under
+`third_party/HypercubeCNN/` — see that tree’s `VENDORED.md`. The host CMake
+builds `HypercubeCNNCore` and links it into the `HypercubeEtalon` target.
+
 ## Idea
 
 Vertices are `0 .. N-1` with `N = 2^dim`. Two vertices are neighbors if their
