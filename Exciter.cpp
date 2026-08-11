@@ -1,9 +1,7 @@
-#include "Reservoir.h"
+#include "Exciter.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <cstring>
 #include <random>
 #include <stdexcept>
 
@@ -11,7 +9,7 @@
 // Construction
 // ---------------------------------------------------------------------------
 
-Reservoir::Reservoir(const ReservoirConfig& cfg)
+Exciter::Exciter(const ExciterConfig& cfg)
     : rng_seed_(cfg.seed),
       dim_(cfg.dim),
       input_scaling_(cfg.input_scaling),
@@ -23,7 +21,7 @@ Reservoir::Reservoir(const ReservoirConfig& cfg)
 
     n_ = 1ULL << dim_;
 
-    // Recurrent weights only: N · dim
+    // Neighbor weights: N · dim
     num_weights_ = n_ * dim_;
 
     state_.assign(n_, 0.0f);
@@ -45,23 +43,22 @@ static inline uint64_t mix64(uint64_t x)
     return x ^ (x >> 31);
 }
 
-// Named substreams (values kept stable vs historical WTF roles where reused).
 enum class SeedRole : uint64_t
 {
-    Recurrent = 1
+    Weights = 1
 };
 
 // ---------------------------------------------------------------------------
 // Weight draw
 // ---------------------------------------------------------------------------
 
-void Reservoir::Initialize()
+void Exciter::Initialize()
 {
     auto seed_for = [this](SeedRole r)
     {
         return mix64(rng_seed_ ^ (0x100000001B3ULL * static_cast<uint64_t>(r)));
     };
-    std::mt19937_64 rng(seed_for(SeedRole::Recurrent));
+    std::mt19937_64 rng(seed_for(SeedRole::Weights));
     std::uniform_real_distribution<double> dist(-1.0, 1.0);
 
     for (size_t i = 0; i < num_weights_; ++i)
@@ -69,7 +66,7 @@ void Reservoir::Initialize()
 
     if (verbose_)
     {
-        std::printf("[Reservoir DIM=%zu N=%zu seed=%llu in_scale=%.3g "
+        std::printf("[Exciter DIM=%zu N=%zu seed=%llu in_scale=%.3g "
                     "w_scale=%.3g]\n",
                     dim_, n_,
                     static_cast<unsigned long long>(rng_seed_),
@@ -81,7 +78,7 @@ void Reservoir::Initialize()
 // Dynamics
 // ---------------------------------------------------------------------------
 
-const float* Reservoir::ExciteCube(const float* input_field)
+const float* Exciter::ExciteCube(const float* input_field)
 {
     for (size_t v = 0; v < n_; ++v)
     {
@@ -94,7 +91,7 @@ const float* Reservoir::ExciteCube(const float* input_field)
     return output_.data();
 }
 
-float Reservoir::ExciteRotation(const size_t v_rotation)
+float Exciter::ExciteRotation(const size_t v_rotation)
 {
     const auto n = static_cast<int64_t>(n_);
 
@@ -123,14 +120,13 @@ float Reservoir::ExciteRotation(const size_t v_rotation)
     return state_[v_rotation];
 }
 
-
 // ---------------------------------------------------------------------------
-// Config / clear
+// Config
 // ---------------------------------------------------------------------------
 
-ReservoirConfig Reservoir::GetConfig() const
+ExciterConfig Exciter::GetConfig() const
 {
-    ReservoirConfig cfg;
+    ExciterConfig cfg;
     cfg.dim = dim_;
     cfg.seed = rng_seed_;
     cfg.input_scaling = input_scaling_;

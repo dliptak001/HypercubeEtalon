@@ -13,7 +13,7 @@ endif()
 
 add_executable(HypercubeEtalon
     main.cpp
-    Reservoir.cpp
+    Exciter.cpp
 )
 
 target_include_directories(HypercubeEtalon
