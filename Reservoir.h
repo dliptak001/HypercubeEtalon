@@ -51,18 +51,18 @@ public:
     Reservoir(const Reservoir&) = delete;
     Reservoir& operator=(const Reservoir&) = delete;
 
-    /// Advance one step: async (in-place) update over vertices 0..N-1, then
-    /// clear staged input. Later vertices see already-updated neighbors.
-    void Step();
+    /// Compute reflection outputs over vertices 0..N-1 into @c output_.
+    /// TODO: overwrite state_ with scaled input_ before the reflection pass.
+    void ComputeOutputs();
 
-    /// Stage a full length-N input field for the next @ref Step.
+    /// Stage a full length-N input field for the next @ref ComputeOutputs.
     /// @throws std::invalid_argument if @p count != N or @p field is null.
     void InjectInputField(const float* field, size_t count);
 
-    /// Zero dynamical state and staged input. Weights unchanged.
+    /// Zero dynamical state, output, and staged input. Weights unchanged.
     void Clear();
 
-    [[nodiscard]] const float* Outputs() const { return state_.data(); }
+    [[nodiscard]] const float* Outputs() const { return output_.data(); }
 
     [[nodiscard]] ReservoirConfig GetConfig() const;
 
@@ -90,6 +90,7 @@ private:
 
     std::vector<float> input_;
     std::vector<float> state_;
+    std::vector<float> output_;
     std::vector<float> weight_; ///< recurrent: N · dim
 
     float input_scaling_ = 0.5f;
@@ -97,5 +98,5 @@ private:
     bool verbose_ = false;
 
     void Initialize();
-    void UpdateState(size_t v);
+    float ReflectionPass(size_t v);
 };

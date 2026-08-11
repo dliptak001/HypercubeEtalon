@@ -28,6 +28,7 @@ Reservoir::Reservoir(const ReservoirConfig& cfg)
 
     input_.assign(n_, 0.0f);
     state_.assign(n_, 0.0f);
+    output_.assign(n_, 0.0f);
     weight_.assign(num_weights_, 0.0f);
 
     Initialize();
@@ -81,24 +82,25 @@ void Reservoir::Initialize()
 // Dynamics
 // ---------------------------------------------------------------------------
 
-void Reservoir::Step()
+void Reservoir::ComputeOutputs()
 {
     for (size_t v = 0; v < n_; ++v)
-        UpdateState(v);
+    {
+        // TODO overwrite state_ with scaled input_
 
-    std::fill(input_.begin(), input_.end(), 0.0f);
+        output_[v] = ReflectionPass(v);
+    }
 }
 
-void Reservoir::UpdateState(const size_t v)
+float Reservoir::ReflectionPass(const size_t v)
 {
-    float s = input_scaling_ * input_[v];
+    float s = 0.0f;
     const float* w = weight_.data() + v * dim_;
 
-    // Async: neighbors already visited this step contribute their new value.
     for (size_t j = 0; j < dim_; ++j)
         s += state_[v ^ NearestMask(j)] * w[j];
 
-    state_[v] = std::tanh(s);
+    return std::tanh(s);
 }
 
 // ---------------------------------------------------------------------------
@@ -149,5 +151,6 @@ ReservoirConfig Reservoir::GetConfig() const
 void Reservoir::Clear()
 {
     std::fill(state_.begin(), state_.end(), 0.0f);
+    std::fill(output_.begin(), output_.end(), 0.0f);
     std::fill(input_.begin(), input_.end(), 0.0f);
 }
