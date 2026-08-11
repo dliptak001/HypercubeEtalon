@@ -15,16 +15,16 @@ Reservoir::Reservoir(const ReservoirConfig& cfg)
     : rng_seed_(cfg.seed),
       dim_(cfg.dim),
       input_scaling_(cfg.input_scaling),
+      weight_scaling_(cfg.weight_scaling),
       verbose_(cfg.verbose)
 {
     if (dim_ < 5 || dim_ > 16)
         throw std::invalid_argument("dim must be in 5 <= dim <= 16");
 
     n_ = 1ULL << dim_;
-    num_input_weights_ = n_ * dim_;
 
-    // Weight layout: [ input: N·dim | recurrent: N·dim ]
-    num_weights_ = n_ * dim_ * 2u;
+    // Recurrent weights only: N · dim
+    num_weights_ = n_ * dim_;
 
     input_.assign(n_, 0.0f);
     state_.assign(n_, 0.0f);
@@ -47,11 +47,7 @@ static inline uint64_t mix64(uint64_t x)
 
 // Named substreams (values kept stable vs historical WTF roles where reused).
 enum class SeedRole : uint64_t {
-    Recurrent = 1,
-    Input = 2,
-    // 3 reserved (was ExternalFeedback in hESN)
-    // 4 reserved (was Bias)
-    // 5 reserved (was SrProbe)
+    Recurrent = 1
 };
 
 // ---------------------------------------------------------------------------
@@ -64,31 +60,20 @@ void Reservoir::Initialize()
         return mix64(rng_seed_ ^ (0x100000001B3ULL * static_cast<uint64_t>(r)));
     };
     std::mt19937_64 rng(seed_for(SeedRole::Recurrent));
-    std::mt19937_64 in_rng(seed_for(SeedRole::Input));
     std::uniform_real_distribution<double> dist(-1.0, 1.0);
 
     Clear();
 
-    float* pW = weight_.data();
-
-    float* const input_base = pW;
-    for (size_t i = 0; i < num_input_weights_; ++i)
-        (*pW++) = static_cast<float>(dist(in_rng));
-    const float in_scaling = input_scaling_ / std::sqrt(static_cast<float>(dim_));
-    for (size_t i = 0; i < num_input_weights_; ++i)
-        input_base[i] *= in_scaling;
-
-    const size_t rec_base = RecurrentWeightBase();
-    const float w_scaling = 1.0f / std::sqrt(static_cast<float>(dim_));
-    for (size_t i = rec_base; i < num_weights_; ++i)
-        weight_[i] = static_cast<float>(dist(rng)) * w_scaling;
+    for (size_t i = 0; i < num_weights_; ++i)
+        weight_[i] = static_cast<float>(dist(rng)) * weight_scaling_;
 
     if (verbose_)
     {
-        std::printf("[Reservoir DIM=%zu N=%zu seed=%llu in_scale=%.3g]\n",
+        std::printf("[Reservoir DIM=%zu N=%zu seed=%llu in_scale=%.3g "
+                    "w_scale=%.3g]\n",
                     dim_, n_,
                     static_cast<unsigned long long>(rng_seed_),
-                    input_scaling_);
+                    input_scaling_, weight_scaling_);
     }
 }
 
@@ -106,12 +91,8 @@ void Reservoir::Step()
 
 void Reservoir::UpdateState(const size_t v)
 {
-    float s = 0.0f;
-    const float* iw = weight_.data() + v * dim_;
-    const float* w = weight_.data() + RecurrentWeightBase() + v * dim_;
-
-    for (size_t i = 0; i < dim_; ++i)
-        s += input_[v ^ NearestMask(i)] * iw[i];
+    float s = input_scaling_ * input_[v];
+    const float* w = weight_.data() + v * dim_;
 
     // Async: neighbors already visited this step contribute their new value.
     for (size_t j = 0; j < dim_; ++j)
@@ -132,18 +113,6 @@ void Reservoir::InjectInputField(const float* field, const size_t count)
         throw std::invalid_argument(
             "InjectInputField: count must equal N = 2^dim");
     std::memcpy(input_.data(), field, n_ * sizeof(float));
-}
-
-void Reservoir::LoadInitialCondition(const float* ic, const size_t count)
-{
-    if (ic == nullptr)
-        throw std::invalid_argument("LoadInitialCondition: ic is null");
-    if (count != n_)
-        throw std::invalid_argument(
-            "LoadInitialCondition: count must equal N = 2^dim");
-
-    std::memcpy(state_.data(), ic, n_ * sizeof(float));
-    std::fill(input_.begin(), input_.end(), 0.0f);
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +141,7 @@ ReservoirConfig Reservoir::GetConfig() const
     cfg.dim = dim_;
     cfg.seed = rng_seed_;
     cfg.input_scaling = input_scaling_;
+    cfg.weight_scaling = weight_scaling_;
     cfg.verbose = verbose_;
     return cfg;
 }

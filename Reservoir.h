@@ -5,17 +5,20 @@
 #include <memory>
 #include <vector>
 
-
+/// @brief Construction-time parameters for @ref Reservoir.
 struct ReservoirConfig
 {
     /// Hypercube dimension; neuron count N = 2^dim. Valid range **[5, 16]**.
     size_t dim = 10;
 
-    /// Master RNG seed for weight draws (named substreams in Reservoir.cpp).
+    /// Master RNG seed for recurrent weight draws.
     uint64_t seed = 7934791766227647176;
 
-    /// Input drive strength. Input weights U(-1,1) then × input_scaling / √dim.
+    /// Scalar gain on the staged length-N input field (no learned W_in).
     float input_scaling = 0.02f;
+
+    /// Scale on recurrent weight draws: U(-1,1) × weight_scaling.
+    float weight_scaling = 0.02f;
 
     /// If true, print one construction banner.
     bool verbose = false;
@@ -23,8 +26,8 @@ struct ReservoirConfig
 
 /// @brief Fixed recurrent core: N = 2^dim neurons on a Boolean hypercube.
 ///
-/// Hypercube topology, single live state, W_in gather. No delay line, no
-/// spectral-radius rescale. Drive via @ref InjectInputField (length N) only.
+/// Hypercube topology, single live state, recurrent neighbor gather only.
+/// No learned input weights: staged drive is @c input_scaling * field[v].
 ///
 /// Per-step contract:
 /// ```
@@ -57,12 +60,7 @@ public:
     void InjectInputField(const float* field, size_t count);
 
     /// Zero dynamical state and staged input. Weights unchanged.
-    /// Prefer @ref LoadInitialCondition for episodes.
     void Clear();
-
-    /// Load length-N initial state. Clears staged input.
-    /// @throws std::invalid_argument if @p count != N or @p ic is null.
-    void LoadInitialCondition(const float* ic, size_t count);
 
     [[nodiscard]] const float* Outputs() const { return state_.data(); }
 
@@ -88,19 +86,16 @@ private:
 
     size_t dim_ = 0;
     size_t n_ = 0;
-    size_t num_input_weights_ = 0;
-    size_t num_weights_ = 0;
+    size_t num_weights_ = 0; ///< N · dim recurrent only
 
     std::vector<float> input_;
     std::vector<float> state_;
-    std::vector<float> weight_;     ///< [ input: N·dim | recurrent: N·dim ]
+    std::vector<float> weight_; ///< recurrent: N · dim
 
     float input_scaling_ = 0.5f;
+    float weight_scaling_ = 0.02f;
     bool verbose_ = false;
 
     void Initialize();
     void UpdateState(size_t v);
-
-    /// Recurrent block starts after the input block.
-    [[nodiscard]] size_t RecurrentWeightBase() const { return num_input_weights_; }
 };
