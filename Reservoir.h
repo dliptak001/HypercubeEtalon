@@ -24,19 +24,6 @@ struct ReservoirConfig
     bool verbose = false;
 };
 
-/// @brief Fixed recurrent core: N = 2^dim neurons on a Boolean hypercube.
-///
-/// Hypercube topology, single live state, recurrent neighbor gather only.
-/// No learned input weights: staged drive is @c input_scaling * field[v].
-///
-/// Typical contract:
-/// ```
-///   InjectInputField(x, N);
-///   ExciteCube();
-///   // read Outputs()
-/// ```
-///
-/// Non-copyable; obtain instances only via @ref Create.
 class Reservoir
 {
 public:
@@ -50,16 +37,7 @@ public:
     Reservoir(const Reservoir&) = delete;
     Reservoir& operator=(const Reservoir&) = delete;
 
-    void ExciteCube();
-
-    void InjectInputField(const float* field);
-
-    /// Zero dynamical state, output, and staged input. Weights unchanged.
-    void Clear();
-
-    [[nodiscard]] const float* Outputs() const { return output_.data(); }
-
-    [[nodiscard]] const float* State() const { return state_.data(); }
+    const float* ExciteCube(const float* input_field);
 
     [[nodiscard]] ReservoirConfig GetConfig() const;
 
@@ -76,7 +54,6 @@ private:
     size_t n_ = 0;
     size_t num_weights_ = 0; ///< N · dim recurrent only
 
-    std::vector<float> input_;
     std::vector<float> state_;
     std::vector<float> output_;
     std::vector<float> weight_; ///< recurrent: N · dim

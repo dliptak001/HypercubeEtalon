@@ -26,7 +26,6 @@ Reservoir::Reservoir(const ReservoirConfig& cfg)
     // Recurrent weights only: N · dim
     num_weights_ = n_ * dim_;
 
-    input_.assign(n_, 0.0f);
     state_.assign(n_, 0.0f);
     output_.assign(n_, 0.0f);
     weight_.assign(num_weights_, 0.0f);
@@ -65,8 +64,6 @@ void Reservoir::Initialize()
     std::mt19937_64 rng(seed_for(SeedRole::Recurrent));
     std::uniform_real_distribution<double> dist(-1.0, 1.0);
 
-    Clear();
-
     for (size_t i = 0; i < num_weights_; ++i)
         weight_[i] = static_cast<float>(dist(rng)) * weight_scaling_;
 
@@ -84,15 +81,17 @@ void Reservoir::Initialize()
 // Dynamics
 // ---------------------------------------------------------------------------
 
-void Reservoir::ExciteCube()
+const float* Reservoir::ExciteCube(const float* input_field)
 {
     for (size_t v = 0; v < n_; ++v)
     {
         for (size_t i = 0; i < n_; i++)
-            state_[i] = input_[i] * input_scaling_;
+            state_[i] = input_field[i] * input_scaling_;
 
         output_[v] = ExciteRotation(v);
     }
+
+    return output_.data();
 }
 
 float Reservoir::ExciteRotation(const size_t v_rotation)
@@ -124,17 +123,6 @@ float Reservoir::ExciteRotation(const size_t v_rotation)
     return state_[v_rotation];
 }
 
-// ---------------------------------------------------------------------------
-// Drive injection / IC
-// ---------------------------------------------------------------------------
-
-void Reservoir::InjectInputField(const float* field)
-{
-    if (field == nullptr)
-        throw std::invalid_argument("InjectInputField: field is null");
-
-    std::memcpy(input_.data(), field, n_ * sizeof(float));
-}
 
 // ---------------------------------------------------------------------------
 // Config / clear
@@ -149,11 +137,4 @@ ReservoirConfig Reservoir::GetConfig() const
     cfg.weight_scaling = weight_scaling_;
     cfg.verbose = verbose_;
     return cfg;
-}
-
-void Reservoir::Clear()
-{
-    std::fill(state_.begin(), state_.end(), 0.0f);
-    std::fill(output_.begin(), output_.end(), 0.0f);
-    std::fill(input_.begin(), input_.end(), 0.0f);
 }
