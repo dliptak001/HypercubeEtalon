@@ -52,29 +52,20 @@ public:
 
     void ExciteCube();
 
-    /// Stage a full length-N input field for the next @ref ExciteCube.
-    /// @throws std::invalid_argument if @p count != N or @p field is null.
-    void InjectInputField(const float* field, size_t count);
+    void InjectInputField(const float* field);
 
     /// Zero dynamical state, output, and staged input. Weights unchanged.
     void Clear();
 
     [[nodiscard]] const float* Outputs() const { return output_.data(); }
 
+    [[nodiscard]] const float* State() const { return state_.data(); }
+
     [[nodiscard]] ReservoirConfig GetConfig() const;
 
     [[nodiscard]] size_t Dim() const { return dim_; }
 
     [[nodiscard]] size_t Size() const { return n_; }
-
-    struct Snapshot
-    {
-        std::vector<float> state; ///< N floats
-    };
-
-    [[nodiscard]] Snapshot TakeSnapshot() const;
-
-    void RestoreSnapshot(const Snapshot& snap);
 
 private:
     explicit Reservoir(const ReservoirConfig& cfg);

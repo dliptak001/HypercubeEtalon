@@ -128,35 +128,17 @@ float Reservoir::ExciteRotation(const size_t v_rotation)
 // Drive injection / IC
 // ---------------------------------------------------------------------------
 
-void Reservoir::InjectInputField(const float* field, const size_t count)
+void Reservoir::InjectInputField(const float* field)
 {
     if (field == nullptr)
         throw std::invalid_argument("InjectInputField: field is null");
-    if (count != n_)
-        throw std::invalid_argument(
-            "InjectInputField: count must equal N = 2^dim");
+
     std::memcpy(input_.data(), field, n_ * sizeof(float));
 }
 
 // ---------------------------------------------------------------------------
-// Snapshot / config / clear
+// Config / clear
 // ---------------------------------------------------------------------------
-
-Reservoir::Snapshot Reservoir::TakeSnapshot() const
-{
-    return Snapshot{state_};
-}
-
-void Reservoir::RestoreSnapshot(const Snapshot& snap)
-{
-    if (snap.state.size() != n_)
-        throw std::invalid_argument(
-            "RestoreSnapshot: snapshot size does not match this reservoir "
-            "(expected state=N)");
-
-    state_ = snap.state;
-    std::fill(input_.begin(), input_.end(), 0.0f);
-}
 
 ReservoirConfig Reservoir::GetConfig() const
 {
