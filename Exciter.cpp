@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <random>
 #include <stdexcept>
 
@@ -16,8 +17,8 @@ Exciter::Exciter(const ExciterConfig& cfg)
       weight_scaling_(cfg.weight_scaling),
       verbose_(cfg.verbose)
 {
-    if (dim_ < 5 || dim_ > 16)
-        throw std::invalid_argument("dim must be in 5 <= dim <= 16");
+    if (dim_ < 4 || dim_ > 16)
+        throw std::invalid_argument("dim must be in 4 <= dim <= 16");
 
     n_ = 1ULL << dim_;
 
@@ -78,13 +79,15 @@ void Exciter::Initialize()
 // Dynamics
 // ---------------------------------------------------------------------------
 
-const float* Exciter::ExciteCube(const float* input_field)
+const float* Exciter::ExciteCube(float* input_field)
 {
+    // Scale once; every rotation reloads this same IC into state_.
+    for (size_t i = 0; i < n_; ++i)
+        input_field[i] *= input_scaling_;
+
     for (size_t v = 0; v < n_; ++v)
     {
-        for (size_t i = 0; i < n_; i++)
-            state_[i] = input_field[i] * input_scaling_;
-
+        std::memcpy(state_.data(), input_field, n_ * sizeof(float));
         output_[v] = ExciteRotation(v);
     }
 
@@ -98,23 +101,25 @@ float Exciter::ExciteRotation(const size_t v_rotation)
     // forward
     for (int64_t v = 0; v < n; ++v)
     {
+        const size_t vv = v ^ v_rotation;
         float s = 0.0f;
-        const float* w = weight_.data() + (v ^ v_rotation) * dim_;
+        const float* w = weight_.data() + vv * dim_;
         for (size_t j = 1; j < dim_; ++j)
-            s += state_[v ^ v_rotation ^ NearestMask(j)] * w[j];
+            s += state_[vv ^ NearestMask(j)] * w[j];
 
-        state_[v ^ v_rotation] = std::tan(s);
+        state_[vv] = std::tan(s);
     }
 
     // reverse
     for (int64_t v = n - 1; v >= 0; --v)
     {
+        const size_t vv = v ^ v_rotation;
         float s = 0.0f;
-        const float* w = weight_.data() + (v ^ v_rotation) * dim_;
+        const float* w = weight_.data() + vv * dim_;
         for (size_t j = 0; j < dim_; ++j)
-            s += state_[v ^ v_rotation ^ NearestMask(j)] * w[j];
+            s += state_[vv ^ NearestMask(j)] * w[j];
 
-        state_[v ^ v_rotation] = std::tan(s);
+        state_[vv] = std::tan(s);
     }
 
     return state_[v_rotation];

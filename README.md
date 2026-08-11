@@ -13,11 +13,13 @@ The object that owns those weights and runs the passes is an **Exciter**.
 Given an input field `x` of length N, `ExciteCube(x)` does the following for
 every rotation index `r = 0 .. N-1`:
 
-1. Copy the field onto the vertices: `state = input_scaling * x`.
-2. Run a forward then reverse in-place pass over the cube. At each vertex the
-   update is a weighted sum of hypercube neighbors, then `tan`. The visit order
-   is the standard index order XOR-translated by `r`, so each `r` is the same
-   local rule seen from a different group translate on the cube.
+1. Scale the field once in place: `x *= input_scaling`.
+2. For each rotation `r`, copy that scaled field onto the vertices
+   (`state = x`), then run a forward then reverse in-place pass. At each
+   vertex the update is a weighted sum of hypercube neighbors, then `tan`.
+   The visit order is the standard index order XOR-translated by `r`, so
+   each `r` is the same local rule seen from a different group translate
+   on the cube.
 3. Write `output[r] = state[r]` after that pair of passes.
 
 The result is a length-N vector: one excitation sample per rotation.
@@ -38,6 +40,6 @@ auto exc = Exciter::Create(cfg);
 const float* y = exc->ExciteCube(x);   // x, y length N = exc->Size()
 ```
 
-`x` must remain valid for the call and must not alias the exciter's internal
+`x` is scaled in place (length N) and must not alias the exciter's internal
 buffers. The returned pointer is into the exciter and is invalidated by the
 next `ExciteCube` or destruction.
