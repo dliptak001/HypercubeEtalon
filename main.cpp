@@ -6,7 +6,6 @@
 int main() {
     ReservoirConfig cfg;
     cfg.dim = 8;
-    cfg.history_depth = 4;
     cfg.verbose = true;
 
     auto res = Reservoir::Create(cfg);
@@ -17,7 +16,6 @@ int main() {
     res->Step();
 
     std::cout << "HypercubeEtalon  N=" << res->Size()
-              << "  realized_SR=" << res->GetRealizedSpectralRadius()
               << "  out[0]=" << res->Outputs()[0] << '\n';
     return 0;
 }
