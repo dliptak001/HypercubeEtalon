@@ -115,6 +115,12 @@ pointer is owned by the Exciter and invalid after the next `ExciteCube`.
 continues from current weights; prefer `SaveHcnnModel` over the unversioned
 `Weights` blob for portable checkpoints.
 
+**Readout is frozen.** It is a HypercubeCNN façade so the product can train a
+head. Do not add more training-loop policy (new LR schedules, extra
+checkpoint schemes, more holdout rules). New work goes on the Exciter map
+or the `Etalon` façade. A different train loop should drive HypercubeCNN
+directly.
+
 ## Examples
 
 `etalon_synth` (no data files) and `etalon_mnist` (IDX from a fixed deploy

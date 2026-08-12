@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -32,44 +31,14 @@ enum class ReadoutOptimizer { Adam, Sgd };
 /// ResumeTrain: also zero Adam/SGD moments so online training continues cleanly.
 enum class ReadoutLoadMode { Eval, ResumeTrain };
 
-/// Cosine-annealing learning-rate schedule: eases the rate smoothly from
-/// @p lr_max (at @p progress = 0) down to @p lr_min (at @p progress = 1).
-/// Shared between the batch and streaming training paths so the schedule shape
-/// is identical. @p progress is clamped to [0, 1].
-///
-/// Note: batch @ref Readout::Train uses HypercubeCNN's `cosine_lr` (last epoch
-/// hits the floor when the horizon is the epoch count). This free function
-/// remains for hosts that drive online @ref TrainStep learning rates themselves.
-inline float CosineLR(float progress, float lr_max, float lr_min)
-{
-    if (progress < 0.0f) progress = 0.0f;
-    if (progress > 1.0f) progress = 1.0f;
-    constexpr float pi = 3.14159265358979323846f;
-    return lr_min + 0.5f * (lr_max - lr_min) * (1.0f + std::cos(pi * progress));
-}
-
-/// Exponential-decay learning-rate schedule: geometric interpolation
-/// lr_max * (lr_min/lr_max)^progress, from @p lr_max (at @p progress = 0) down
-/// to exactly @p lr_min (at @p progress = 1). Where cosine holds the rate high
-/// early and dives late, this drops by a constant *ratio* per unit progress —
-/// linear in log-space. Drop-in alternative to @ref CosineLR (same signature
-/// and clamping); requires @p lr_max and @p lr_min > 0.
-inline float ExponentialDecayLR(float progress, float lr_max, float lr_min)
-{
-    if (progress < 0.0f) progress = 0.0f;
-    if (progress > 1.0f) progress = 1.0f;
-    return lr_max * std::pow(lr_min / lr_max, progress);
-}
-
 /// @brief Architecture and training settings for the @ref Readout CNN.
 ///
-/// The defaults are sensible for a first run; you mainly set @c dim,
-/// @c num_outputs, and @c task. The fields split into two groups: the network
-/// *shape* (dim, num_outputs, task, num_layers, conv_channels, activation, …)
-/// and the *training* hyperparameters (epochs, batch_size, the learning-rate
-/// schedule, weight_decay, momentum, seed).
+/// Frozen product knobs — do not add more training-loop policy here.
+/// New work belongs on @ref Exciter / @ref Etalon. For a different train
+/// loop, drive HypercubeCNN directly.
 ///
-/// Must stay trivially copyable (POD) so it can be written into a checkpoint.
+/// You mainly set @c dim, @c num_outputs, and @c task. The rest is a fixed
+/// HCNN stack + cosine Adam/SGD fit. Trivially copyable.
 struct ReadoutConfig
 {
     /// Input feature dim: features per sample = 2^dim. Valid range **[3, 30]**
@@ -104,8 +73,6 @@ struct ReadoutConfig
     float weight_decay = 0.0f;
     float momentum = 0.9f; ///< SGD momentum (heavy-ball). 0 = plain SGD. Ignored by Adam.
     /// CNN weight-init seed (full 64-bit). Forwarded to HypercubeCNN `weight_seed`.
-    /// Seeds that fit in 32 bits keep the historical mt19937 single-arg path so
-    /// old campaign inits stay bit-identical; wider seeds expand both halves.
     uint64_t seed = 42;
     ReadoutActivation activation = ReadoutActivation::TANH; ///< Per-Conv-layer activation.
 
@@ -129,39 +96,33 @@ struct ReadoutConfig
     float best_epoch_holdout_frac = 0.0f;
 };
 
-/// @brief Trainable HypercubeCNN façade: maps one length-N field (N = 2^dim)
-/// to task outputs (regression vector or class logits).
+/// @brief Trainable HypercubeCNN façade: length-N field → task outputs.
 ///
-/// In HypercubeEtalon the typical input is an **@ref Exciter** bank output —
-/// one excitation sample per XOR rotation, still length N. The Exciter is
-/// frozen; only this readout learns. The same façade works on any length-N
-/// hypercube field the host supplies (raw pack, excitation, etc.).
+/// **Scope freeze.** This class is a ported HCNN wrapper so Etalon can
+/// collect → train → predict without including `HCNN.h`. It is not the
+/// product. Do not add new schedules, checkpoint schemes, or train-loop
+/// knobs here. Change the graph via HypercubeCNN; change the map via
+/// @ref Exciter.
+///
+/// Typical input is an @ref Exciter bank output (still length N). The same
+/// façade accepts any length-N field (raw pack, excitation, etc.).
 ///
 /// ## Data path
 /// ```
 ///   field[N] ──▶ Embed ──▶ [ Conv + Pool ] × L ──▶ Flatten ──▶ Linear ──▶ output
-///                          channels grow by channel_growth each layer
 /// ```
-/// The stack is built via HypercubeCNN's architecture product (`LayerSpec` /
-/// `HCNNConfig`) from @c dim (valid **[3, 30]**): by default L = min(dim - 2, 2)
-/// Conv(+Pool) stages (override with @ref ReadoutConfig::num_layers), the first
-/// conv using @ref ReadoutConfig::conv_channels channels. With pooling on,
-/// `num_layers` must be `<= dim-2` so the stack leaves dim >= 2. Prefer
-/// @c dim >= 5 for a roomier default pooled stack; that is guidance, not a
-/// hard floor.
+/// Stack from @c dim (valid **[3, 30]**): L = min(dim - 2, 2) Conv(+Pool)
+/// stages unless @ref ReadoutConfig::num_layers is set. With pooling on,
+/// `num_layers` must be `<= dim-2`. Prefer @c dim >= 5.
 ///
 /// ## Lifecycle
-/// Pick a training path:
-///   - **Batch** — collect a set of fields, then @ref Train once over all of them.
-///   - **Streaming / online** — interleave @ref TrainStep (one field) or
-///     @ref TrainStepBatch (a mini-batch) with whatever produces the features
-///     (e.g. @ref Exciter::ExciteCube).
+/// Product path: collect fields, @ref Train once, then @ref PredictRaw /
+/// @ref PredictClass. @ref TrainStep* exist for hosts that already interleave
+/// their own loop — they are not an invitation to grow policy here.
+/// Prefer @ref SaveHcnnModel over the unversioned @ref Weights blob.
 ///
-/// Then @ref PredictRaw / @ref PredictClass to use it, and @ref R2 / @ref Accuracy
-/// to score it. Save and reload the learned weights with @ref Weights / @ref SetState.
-///
-/// @note PIMPL: the underlying @c hcnn::HCNN is held by unique_ptr so HCNN.h
-///       stays out of this public header (it is included only in Readout.cpp).
+/// @note PIMPL: `HCNN.h` stays out of this header (included only in
+///       Readout.cpp).
 class Readout
 {
 public:
@@ -185,10 +146,10 @@ public:
     /// @throws std::logic_error if task is Regression.
     void Train(const float* states, const int* class_labels, size_t num_samples);
 
-    // ----- Streaming training -----
+    // ----- Streaming training (thin HCNN forwards; not the product path) -----
     //
-    // One gradient step at a time, interleaved with feature production
-    // (Exciter, packer, etc.). Overloads are task-typed (no float class indices).
+    // One gradient step. Host supplies the learning rate. Do not add
+    // schedules or extra knobs around these.
 
     /// @brief One regression step. @p target is num_outputs floats.
     /// @throws std::logic_error if task is Classification.
