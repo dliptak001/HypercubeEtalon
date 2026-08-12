@@ -178,7 +178,7 @@ static PathResult RunPath(const char* name, EtalonConfig cfg,
     r.name = name;
 
     Etalon et(cfg);
-    etalon_ex::PrintEtalonHeader(name, et, cfg);
+    etalon_ex::PrintEtalonHeader(name, et);
 
     auto t0 = std::chrono::steady_clock::now();
     std::printf("%s: collecting %zu fields...\n", name, train_labels.size());

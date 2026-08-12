@@ -7,7 +7,6 @@
 #include <cstdint>
 #include <memory>
 #include <span>
-#include <string>
 #include <vector>
 
 /// Full product configuration for @ref Etalon.
@@ -48,36 +47,37 @@ struct EtalonConfig
 ///
 /// Lifecycle: @ref Collect → @ref TrainOnCollected → @ref Predict /
 /// @ref PredictClass. @ref Run maps a field into @ref LastFeatures without
-/// appending to the training set.
+/// appending to the training set. Save/load, weight blobs, and
+/// @ref Readout::IsTrained live on @ref readout(), not here.
 ///
 /// Caller buffers are never mutated: @ref Exciter::ExciteCube scales in place,
 /// so every public path copies into internal scratch first.
 ///
 /// One instance is not thread-safe for concurrent public calls.
+/// Moved-from objects may only be assigned to or destroyed.
 class Etalon
 {
 public:
     explicit Etalon(const EtalonConfig& cfg);
-    ~Etalon();
 
     Etalon(const Etalon&) = delete;
     Etalon& operator=(const Etalon&) = delete;
+    Etalon(Etalon&&) noexcept = default;
+    Etalon& operator=(Etalon&&) noexcept = default;
 
-    // ----- Sizes -----
+    // ----- Sizes / pieces -----
 
     [[nodiscard]] size_t Dim() const { return dim_; }
     [[nodiscard]] size_t N() const { return n_; }
-    [[nodiscard]] size_t FeatureSize() const { return n_; }
     [[nodiscard]] size_t NumCollected() const { return num_collected_; }
     [[nodiscard]] size_t NumOutputs() const { return readout_->NumOutputs(); }
-    [[nodiscard]] bool BypassExciter() const { return bypass_exciter_; }
-    [[nodiscard]] float TrainInputNoiseSigma() const { return train_input_noise_sigma_; }
-    [[nodiscard]] uint64_t NoiseSeed() const { return noise_seed_; }
 
+    /// Resolved product knobs (readout.dim filled in).
+    [[nodiscard]] const EtalonConfig& config() const { return cfg_; }
     [[nodiscard]] const Exciter& exciter() const { return *exciter_; }
+    /// The trainable head. Weights, HCNW save/load, IsTrained, ArchSummary.
+    [[nodiscard]] Readout& readout() { return *readout_; }
     [[nodiscard]] const Readout& readout() const { return *readout_; }
-    [[nodiscard]] const ReadoutConfig& readout_config() const { return readout_cfg_; }
-    [[nodiscard]] const ExciterConfig& exciter_config() const { return exciter_cfg_; }
 
     // ----- Map field → features -----
 
@@ -85,8 +85,10 @@ public:
     /// Updates @ref LastFeatures. No train-input noise.
     void Run(std::span<const float> x);
 
-    /// Features from the most recent successful @ref Run, serial @ref Collect,
-    /// @ref Predict, or @ref PredictClass.
+    /// Features from the most recent successful map on this instance
+    /// (@ref Run, @ref Collect, @ref Predict, @ref PredictClass, @ref Accuracy,
+    /// @ref R2, or a batch collect). Valid until the next map on this instance;
+    /// copy the values if you need to keep them.
     [[nodiscard]] std::span<const float> LastFeatures() const { return last_features_; }
 
     // ----- Collect / train -----
@@ -103,13 +105,15 @@ public:
     void Collect(std::span<const float> x, std::span<const float> target);
 
     /// Bulk collect (classification). @p fields_flat is sample-major, length
-    /// count * N; @p labels length count. Serial. Does not update LastFeatures
-    /// to a single sample (last row is left in LastFeatures for convenience).
+    /// count * N; @p labels length count. Serial. Validates all labels before
+    /// mapping. On success the last row is left in @ref LastFeatures. A throw
+    /// leaves the collected set unchanged.
     void CollectBatch(std::span<const float> fields_flat,
                       std::span<const int> labels);
 
     /// Bulk collect (regression). @p targets_flat is sample-major, length
-    /// count * NumOutputs(). Serial.
+    /// count * NumOutputs(). Serial. On success the last row is left in
+    /// @ref LastFeatures. A throw leaves the collected set unchanged.
     void CollectBatch(std::span<const float> fields_flat,
                       std::span<const float> targets_flat);
 
@@ -145,51 +149,22 @@ public:
     [[nodiscard]] double R2(std::span<const float> fields_flat,
                             std::span<const float> targets_flat);
 
-    // ----- Readout persistence (thin forwards) -----
-
-    [[nodiscard]] bool IsReadoutTrained() const { return readout_->IsTrained(); }
-    [[nodiscard]] std::vector<double> GetReadoutWeights() const
-    {
-        return readout_->Weights();
-    }
-    void SetReadoutWeights(std::vector<double> weights,
-                           ReadoutLoadMode mode = ReadoutLoadMode::Eval)
-    {
-        readout_->SetState(std::move(weights), mode);
-    }
-    void SaveReadoutHcnnModel(const std::string& path_stem) const
-    {
-        readout_->SaveHcnnModel(path_stem);
-    }
-    void LoadReadoutHcnnModel(const std::string& path_stem,
-                              ReadoutLoadMode mode = ReadoutLoadMode::Eval)
-    {
-        readout_->LoadHcnnModel(path_stem, mode);
-    }
-    [[nodiscard]] std::string ReadoutArchSummary() const
-    {
-        return readout_->ArchSummary();
-    }
-    [[nodiscard]] int ReadoutBestEpoch() const { return readout_->BestEpoch(); }
-
 private:
-    void MapInto(std::span<const float> x, std::vector<float>& out_features);
+    void MapInto(std::span<const float> x, float* dest);
     void MapBatchInto(std::span<const float> fields_flat,
                       std::vector<float>& out_features);
-    void AppendFeatures(std::span<const float> x);
+    void MapCollectedOne(std::span<const float> x);
+    void MapCollectedBatch(std::span<const float> fields_flat,
+                           std::vector<float>& mapped);
     void RequireClassification() const;
     void RequireRegression() const;
 
+    EtalonConfig cfg_{};
     size_t dim_ = 0;
     size_t n_ = 0;
-    bool bypass_exciter_ = false;
-    float train_input_noise_sigma_ = 0.0f;
-    uint64_t noise_seed_ = 1;
 
     std::unique_ptr<Exciter> exciter_;
     std::unique_ptr<Readout> readout_;
-    ExciterConfig exciter_cfg_{};
-    ReadoutConfig readout_cfg_{};
 
     std::vector<float> field_scratch_;   // length N; ExciteCube mutates this
     std::vector<float> last_features_;   // length N

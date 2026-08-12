@@ -125,6 +125,15 @@ hands the raw field to the head (the fair baseline).
 `AccuracyOnCollected` is not a test number. Use `Accuracy` on held-out
 fields for that.
 
+The head itself is `et.readout()`. Save and load, weight blobs, architecture
+summary, and “has this been trained?” all live there — not on `Etalon`.
+
+```text
+et.readout().SaveHcnnModel("out/readout");
+et.readout().LoadHcnnModel("out/readout");
+et.readout().IsTrained();
+```
+
 ## Sizes
 
 | Piece | dim | Why |

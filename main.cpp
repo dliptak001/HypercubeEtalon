@@ -10,6 +10,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -166,13 +167,12 @@ int main()
         // ----- 1) Contract: sizes, non-mutation, LastFeatures -----
         {
             Etalon et(MakeCfg());
-            if (et.N() != kN || et.Dim() != kDim || et.FeatureSize() != kN
+            if (et.N() != kN || et.Dim() != kDim
                 || et.NumOutputs() != 2 || et.exciter().Halvings() != 1
                 || et.exciter().WalkSize() != kN / 2)
             {
                 std::cerr << "FAIL: size contract N=" << et.N()
                           << " Dim=" << et.Dim()
-                          << " F=" << et.FeatureSize()
                           << " outs=" << et.NumOutputs() << '\n';
                 return EXIT_FAILURE;
             }
@@ -244,20 +244,20 @@ int main()
                 std::cerr << "FAIL: NumCollected=" << et.NumCollected() << '\n';
                 return EXIT_FAILURE;
             }
-            if (et.IsReadoutTrained())
+            if (et.readout().IsTrained())
             {
-                std::cerr << "FAIL: IsReadoutTrained true before Train\n";
+                std::cerr << "FAIL: readout trained before Train\n";
                 return EXIT_FAILURE;
             }
 
             et.TrainOnCollected();
-            if (!et.IsReadoutTrained())
+            if (!et.readout().IsTrained())
             {
-                std::cerr << "FAIL: IsReadoutTrained false after Train\n";
+                std::cerr << "FAIL: readout not trained after Train\n";
                 return EXIT_FAILURE;
             }
             const double acc = et.AccuracyOnCollected();
-            std::cout << "  " << et.ReadoutArchSummary() << '\n'
+            std::cout << "  " << et.readout().ArchSummary() << '\n'
                       << "  train accuracy=" << acc << '\n';
 
             if (!(acc >= 0.75))
@@ -297,13 +297,13 @@ int main()
             }
 
             // Weight round-trip.
-            auto w = et.GetReadoutWeights();
+            auto w = et.readout().Weights();
             if (w.empty())
             {
                 std::cerr << "FAIL: empty readout weights\n";
                 return EXIT_FAILURE;
             }
-            et.SetReadoutWeights(w);
+            et.readout().SetState(w);
             const double acc2 = et.AccuracyOnCollected();
             if (std::fabs(acc2 - acc) > 1e-5)
             {
@@ -315,7 +315,7 @@ int main()
             // HCNW + arch sidecar: Etalon format token, load marks trained.
             const auto stem = (std::filesystem::temp_directory_path()
                                / "etalon_smoke_readout").string();
-            et.SaveReadoutHcnnModel(stem);
+            et.readout().SaveHcnnModel(stem);
             {
                 std::ifstream arch(stem + ".arch.json");
                 const std::string text(
@@ -331,15 +331,15 @@ int main()
             }
             {
                 Etalon loaded(MakeCfg());
-                if (loaded.IsReadoutTrained())
+                if (loaded.readout().IsTrained())
                 {
                     std::cerr << "FAIL: fresh Etalon marked trained\n";
                     return EXIT_FAILURE;
                 }
-                loaded.LoadReadoutHcnnModel(stem);
-                if (!loaded.IsReadoutTrained())
+                loaded.readout().LoadHcnnModel(stem);
+                if (!loaded.readout().IsTrained())
                 {
-                    std::cerr << "FAIL: LoadReadoutHcnnModel did not mark trained\n";
+                    std::cerr << "FAIL: LoadHcnnModel did not mark trained\n";
                     return EXIT_FAILURE;
                 }
             }
@@ -384,11 +384,47 @@ int main()
                 std::cerr << "FAIL: CollectBatch count\n";
                 return EXIT_FAILURE;
             }
+
+            // Bad label after a prefix must not keep a partial batch.
+            std::vector<int> bad = labels;
+            bad.back() = 99;
+            bool threw = false;
+            try { et.CollectBatch(flat, bad); }
+            catch (const std::invalid_argument&) { threw = true; }
+            if (!threw || et.NumCollected() != kCount)
+            {
+                std::cerr << "FAIL: CollectBatch not transactional\n";
+                return EXIT_FAILURE;
+            }
+
             et.ClearCollected();
             if (et.NumCollected() != 0)
             {
                 std::cerr << "FAIL: ClearCollected\n";
                 return EXIT_FAILURE;
+            }
+        }
+
+        // ----- 5) Move -----
+        {
+            Etalon a(MakeCfg());
+            auto x = MakeField(kN, 0, 1);
+            a.Run(x);
+            std::vector<float> feat(a.LastFeatures().begin(),
+                                   a.LastFeatures().end());
+            Etalon b(std::move(a));
+            if (b.N() != kN || b.LastFeatures().size() != kN)
+            {
+                std::cerr << "FAIL: move sizes\n";
+                return EXIT_FAILURE;
+            }
+            for (size_t i = 0; i < kN; ++i)
+            {
+                if (std::fabs(b.LastFeatures()[i] - feat[i]) > 1e-7f)
+                {
+                    std::cerr << "FAIL: move LastFeatures\n";
+                    return EXIT_FAILURE;
+                }
             }
         }
 

@@ -183,9 +183,9 @@ static PathResult RunPath(const char* name, EtalonConfig cfg,
     r.name = name;
 
     Etalon et(cfg);
-    etalon_ex::PrintEtalonHeader(name, et, cfg);
+    etalon_ex::PrintEtalonHeader(name, et);
 
-    if (!train_fields.empty() && !et.BypassExciter())
+    if (!train_fields.empty() && !et.config().bypass_exciter)
     {
         et.Run(train_fields.subspan(0, et.N()));
         double acc_abs = 0.0;

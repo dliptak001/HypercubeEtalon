@@ -52,15 +52,15 @@ inline void PrintReadoutConfig(const Readout& ro)
     std::fflush(stdout);
 }
 
-inline void PrintEtalonHeader(const char* demo_name, const Etalon& et,
-                              const EtalonConfig& cfg)
+inline void PrintEtalonHeader(const char* demo_name, const Etalon& et)
 {
+    const EtalonConfig& cfg = et.config();
     std::printf("%s: N=%zu dim=%zu bypass_exciter=%s "
                 "train_input_noise_sigma=%.4g noise_seed=%llu\n",
                 demo_name, et.N(), et.Dim(),
-                et.BypassExciter() ? "true" : "false",
-                static_cast<double>(et.TrainInputNoiseSigma()),
-                static_cast<unsigned long long>(et.NoiseSeed()));
+                cfg.bypass_exciter ? "true" : "false",
+                static_cast<double>(cfg.train_input_noise_sigma),
+                static_cast<unsigned long long>(cfg.noise_seed));
     PrintExciterConfig(cfg.exciter);
     PrintReadoutConfig(et.readout());
     std::fflush(stdout);
