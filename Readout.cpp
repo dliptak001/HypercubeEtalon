@@ -47,20 +47,46 @@ static hcnn::OptimizerType map_optimizer(ReadoutOptimizer o)
     return hcnn::OptimizerType::ADAM;
 }
 
+/// Resolved Conv(+Pool) stage count. 0 in config means auto: min(dim-2, 2), at least 1.
+static int resolved_num_layers(const ReadoutConfig& cfg)
+{
+    const int d = static_cast<int>(cfg.dim);
+    int layers = (cfg.num_layers > 0) ? cfg.num_layers : std::min(d - 2, 2);
+    return std::max(layers, 1);
+}
+
+/// Hard limits match HypercubeCNN ([3, 30]). Pooling must leave dim >= 2.
+static void validate_readout_config(const ReadoutConfig& cfg)
+{
+    if (cfg.dim < 3 || cfg.dim > 30)
+    {
+        throw std::invalid_argument(
+            "Readout: dim must be in 3 <= dim <= 30");
+    }
+    if (cfg.num_outputs < 1)
+        throw std::invalid_argument("Readout: num_outputs must be >= 1");
+    if (cfg.num_layers < 0)
+        throw std::invalid_argument("Readout: num_layers must be >= 0");
+    if (cfg.conv_channels < 1)
+        throw std::invalid_argument("Readout: conv_channels must be >= 1");
+    if (cfg.channel_growth < 1)
+        throw std::invalid_argument("Readout: channel_growth must be >= 1");
+
+    const int d = static_cast<int>(cfg.dim);
+    const int layers = resolved_num_layers(cfg);
+    // Each pool drops one hypercube dimension; HCNN requires current_dim >= 2
+    // before a pool. With pooling off the dimension never shrinks.
+    if (cfg.use_pooling && layers > d - 2)
+    {
+        throw std::invalid_argument(
+            "Readout: with pooling, num_layers must be <= dim-2 "
+            "(must leave dim >= 2 after the stack)");
+    }
+}
+
 static std::vector<hcnn::LayerSpec> make_layer_specs(const ReadoutConfig& cfg)
 {
-    assert(cfg.dim >= 5);
-    const int d = static_cast<int>(cfg.dim);
-
-    int layers = (cfg.num_layers > 0)
-                     ? cfg.num_layers
-                     : std::min(d - 2, 2);
-    layers = std::max(layers, 1);
-    // Each pool drops one hypercube dimension, so the stack must leave >= 2 behind.
-    // With pooling off the dimension never shrinks and the bound is vacuous.
-    assert(!cfg.use_pooling || layers <= d - 2);
-    assert(cfg.channel_growth >= 1);
-    assert(cfg.conv_channels >= 1);
+    const int layers = resolved_num_layers(cfg);
 
     const hcnn::Activation act = map_activation(cfg.activation);
     const hcnn::PoolType pool = map_pool(cfg.pool_type);
@@ -89,6 +115,7 @@ Readout::Readout(const ReadoutConfig& cfg)
     : config_(cfg)
     , num_outputs_(static_cast<size_t>(cfg.num_outputs))
 {
+    validate_readout_config(config_);
     // Build the network eagerly. build_architecture() needs only the config
     // (no data, no warm-up), so there is nothing to defer: net_ is a non-null
     // invariant from construction on.
@@ -138,6 +165,7 @@ void Readout::Train(const float* states, const float* targets,
             "Readout::Train(float*): regression task only; use int* labels "
             "for classification");
 
+    trained_ = true;
     // net_ is already built (ctor). Train fits the existing network in place;
     // a second Train() continues from the current weights rather than
     // re-randomizing — reconstruct the Readout for a fresh fit.
@@ -210,6 +238,7 @@ void Readout::Train(const float* states, const int* class_labels,
             "Readout::Train(int*): classification task only; use float* "
             "targets for regression");
 
+    trained_ = true;
     const int n = static_cast<int>(num_features_);
     best_epoch_ = 0;
 
@@ -283,6 +312,7 @@ void Readout::TrainStep(const float* state, const float* target,
     p.momentum = config_.momentum;
     p.weight_decay = weight_decay;
     net_->TrainStep(state, n, target, p);
+    trained_ = true;
 }
 
 void Readout::TrainStep(const float* state, int class_label,
@@ -300,6 +330,7 @@ void Readout::TrainStep(const float* state, int class_label,
     p.momentum = config_.momentum;
     p.weight_decay = weight_decay;
     net_->TrainStep(state, n, class_label, p);
+    trained_ = true;
 }
 
 void Readout::TrainStepBatch(const float* states, const float* targets,
@@ -318,6 +349,7 @@ void Readout::TrainStepBatch(const float* states, const float* targets,
     p.momentum = config_.momentum;
     p.weight_decay = weight_decay;
     net_->TrainBatch(states, n, targets, batch, p);
+    trained_ = true;
 }
 
 void Readout::TrainStepBatch(const float* states, const int* class_labels,
@@ -336,6 +368,7 @@ void Readout::TrainStepBatch(const float* states, const int* class_labels,
     p.momentum = config_.momentum;
     p.weight_decay = weight_decay;
     net_->TrainBatch(states, n, class_labels, batch, p);
+    trained_ = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -443,6 +476,7 @@ void Readout::SetState(std::vector<double> weights, ReadoutLoadMode mode)
     const std::vector<float> fw(weights.begin(), weights.end());
     const bool reset_moments = (mode == ReadoutLoadMode::ResumeTrain);
     net_->SetWeights(fw, reset_moments);
+    trained_ = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -584,7 +618,7 @@ void Readout::SaveHcnnModel(const std::string& path_stem) const
             "Readout::SaveHcnnModel: cannot open " + arch_path);
 
     out << "{\n"
-        << "  \"format\": \"hypercube_esn_readout_arch\",\n"
+        << "  \"format\": \"" << kArchSidecarFormat << "\",\n"
         << "  \"version\": " << kArchSidecarVersion << ",\n"
         << "  \"start_dim\": " << config_.dim << ",\n"
         << "  \"num_outputs\": " << config_.num_outputs << ",\n"
@@ -656,10 +690,11 @@ void Readout::LoadHcnnModel(const std::string& path_stem, ReadoutLoadMode mode)
 
         std::string format;
         if (!json_find_string(text, "format", format)
-            || format != "hypercube_esn_readout_arch") {
+            || format != kArchSidecarFormat) {
             throw std::runtime_error(
                 "Readout::LoadHcnnModel: " + arch_path
-                + " is not a hypercube_esn_readout_arch sidecar");
+                + " is not a " + std::string(kArchSidecarFormat)
+                + " sidecar");
         }
 
         long long version = 0;
@@ -727,6 +762,7 @@ void Readout::LoadHcnnModel(const std::string& path_stem, ReadoutLoadMode mode)
 
     const bool reset_moments = (mode == ReadoutLoadMode::ResumeTrain);
     hcnn::load_weights(*net_, hcnw_path, reset_moments);
+    trained_ = true;
 }
 
 std::string Readout::ArchSummary() const

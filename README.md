@@ -49,7 +49,7 @@ Public entry point is **`Etalon`**: frozen Exciter + trainable Readout.
 
 ```text
 EtalonConfig cfg;
-cfg.exciter.dim = 5;                 // N = 32; prefer dim >= 5 for readout stacks
+cfg.exciter.dim = 5;                 // N = 32; product dim is [4, 10], prefer >= 5
 cfg.exciter.input_scaling = 1.0f;
 cfg.exciter.weight_scaling = 0.5f;
 cfg.readout.dim = 0;                 // auto = exciter.dim
@@ -76,6 +76,7 @@ x[N]  →  [optional collect-only noise]  →  Exciter  →  y[N]  →  Readout
 | `TrainOnCollected` | Batch-train the readout on collected features |
 | `Predict` / `PredictClass` | Fresh map + forward (no train noise) |
 | `AccuracyOnCollected` / `R2OnCollected` | Metrics on the **training** set |
+| `Accuracy` / `R2` | Fresh map + metric on a caller-owned set (test) |
 | `ClearCollected` | Drop the training buffer |
 
 Callers’ field buffers are **never** mutated (`ExciteCube` scales a private copy).
@@ -91,6 +92,18 @@ No reservoir orbit (`T`), delay-line packing (`B`/`M`), episode IC (`s0`), or
 parallel collect pool. One map is one Exciter bank pass; features are always
 length N.
 
+### Dimension ranges
+
+| Surface | dim | Why |
+|---------|-----|-----|
+| Exciter | 4 .. 10 | 4 is the smallest useful star; 10 is the cost cap (N = 1024) |
+| Readout | 3 .. 30 | HypercubeCNN hard limit. With pooling, `num_layers <= dim-2` |
+| Etalon | 4 .. 10 | Same as Exciter; `readout.dim` auto-matches |
+
+Prefer `dim >= 5` for a roomier default pooled stack. That is guidance, not a
+hard floor: dim 4 constructs and trains. Illegal stacks throw
+`std::invalid_argument` in both Debug and Release.
+
 ### Lower-level pieces
 
 `Exciter` and `Readout` remain usable directly when you do not want the façade.
@@ -98,6 +111,12 @@ length N.
 **Exciter contracts:** length-N non-null field; scales **in place**; return
 pointer is owned by the Exciter and invalid after the next `ExciteCube`.
 
-**Readout contracts:** input length `2^dim` (prefer `dim >= 5`); `Train`
+**Readout contracts:** input length `2^dim` with dim in [3, 30]; `Train`
 continues from current weights; prefer `SaveHcnnModel` over the unversioned
 `Weights` blob for portable checkpoints.
+
+## Examples
+
+`etalon_synth` (no data files) and `etalon_mnist` (IDX from a fixed deploy
+dir) live under [`examples/`](examples/README.md). Each scores Exciter vs
+bypass on a held-out set. Build Release; run the binary you care about.

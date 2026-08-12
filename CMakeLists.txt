@@ -60,9 +60,21 @@ target_link_libraries(HypercubeEtalon
         etalon_compile_flags
 )
 
-if(MINGW)
-    target_link_options(HypercubeEtalon PRIVATE
-        # Debug MinGW + static libs can hit duplicate symbols on some hosts.
-        $<$<CONFIG:Debug>:-Wl,--allow-multiple-definition>
-    )
+# ——— Demos (only when this repo is the top-level project) ———
+# Layout: examples/<demo>/…  shared headers: examples/common/
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    function(etalon_add_exe name)
+        cmake_parse_arguments(ET "" "" "SOURCES;INCLUDES" ${ARGN})
+        add_executable(${name} ${ET_SOURCES})
+        target_link_libraries(${name} PRIVATE HypercubeEtalonCore etalon_compile_flags)
+        target_include_directories(${name} PRIVATE
+            ${PROJECT_SOURCE_DIR}/examples/common
+            ${ET_INCLUDES}
+        )
+    endfunction()
+
+    etalon_add_exe(etalon_synth SOURCES examples/synth/etalon_synth.cpp)
+    etalon_add_exe(etalon_mnist
+        SOURCES examples/mnist/etalon_mnist.cpp
+        INCLUDES ${PROJECT_SOURCE_DIR}/examples/mnist)
 endif()

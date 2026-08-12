@@ -14,7 +14,8 @@
 ///
 /// Typical knobs: @c exciter.dim / scales / seed, and @c readout.num_outputs /
 /// @c readout.task / training hyperparameters. Leave @c readout.dim at 0 to
-/// auto-match the Exciter dim (feature length N = 2^dim).
+/// auto-match the Exciter dim (feature length N = 2^dim). Product dim is the
+/// Exciter range **[4, 10]**; prefer >= 5 so a pooled readout has room.
 struct EtalonConfig
 {
     ExciterConfig exciter{};
@@ -66,7 +67,6 @@ public:
 
     [[nodiscard]] size_t Dim() const { return dim_; }
     [[nodiscard]] size_t N() const { return n_; }
-    /// Feature length presented to the readout (always N for this product).
     [[nodiscard]] size_t FeatureSize() const { return n_; }
     [[nodiscard]] size_t NumCollected() const { return num_collected_; }
     [[nodiscard]] size_t NumOutputs() const { return readout_->NumOutputs(); }
@@ -133,6 +133,18 @@ public:
     /// R² on the collected (training) set — not a test-set metric.
     [[nodiscard]] double R2OnCollected() const;
 
+    /// Fresh map (no collect noise) + classification accuracy on a caller-owned
+    /// set. @p fields_flat is sample-major, length count * N; @p labels length
+    /// count. Updates @ref LastFeatures to the last sample.
+    [[nodiscard]] double Accuracy(std::span<const float> fields_flat,
+                                  std::span<const int> labels);
+
+    /// Fresh map (no collect noise) + R² on a caller-owned set.
+    /// @p targets_flat is sample-major, length count * NumOutputs().
+    /// Updates @ref LastFeatures to the last sample.
+    [[nodiscard]] double R2(std::span<const float> fields_flat,
+                            std::span<const float> targets_flat);
+
     // ----- Readout persistence (thin forwards) -----
 
     [[nodiscard]] bool IsReadoutTrained() const { return readout_->IsTrained(); }
@@ -162,6 +174,8 @@ public:
 
 private:
     void MapInto(std::span<const float> x, std::vector<float>& out_features);
+    void MapBatchInto(std::span<const float> fields_flat,
+                      std::vector<float>& out_features);
     void AppendFeatures(std::span<const float> x);
     void RequireClassification() const;
     void RequireRegression() const;

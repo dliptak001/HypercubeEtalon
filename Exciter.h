@@ -8,7 +8,9 @@
 /// @brief Construction-time parameters for @ref Exciter.
 struct ExciterConfig
 {
-    /// Hypercube dimension; neuron count N = 2^dim. Valid range **[4, 10]**.
+    /// Hypercube dimension; neuron count N = 2^dim. Valid range **[4, 10]**:
+    /// 4 is the smallest cube with a useful neighbor star; 10 is the cost cap
+    /// (N = 1024, bank is O(N^2 · dim)).
     size_t dim = 8;
 
     /// Master RNG seed for neighbor weight draws.

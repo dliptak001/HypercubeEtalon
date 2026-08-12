@@ -72,7 +72,10 @@ inline float ExponentialDecayLR(float progress, float lr_max, float lr_min)
 /// Must stay trivially copyable (POD) so it can be written into a checkpoint.
 struct ReadoutConfig
 {
-    size_t dim = 0; ///< Input feature dim: features per sample = 2^dim.
+    /// Input feature dim: features per sample = 2^dim. Valid range **[3, 30]**
+    /// (HypercubeCNN). 0 is unset — construction throws. Etalon auto-fills
+    /// this from the Exciter.
+    size_t dim = 0;
     int num_outputs = 1; ///< Classes (classification) or targets (regression).
     ReadoutTask task = ReadoutTask::Regression;
     int num_layers = 1; ///< Conv(+Pool) layers. Default 1 (typical). 0 = auto: min(dim-2, 2).
@@ -140,10 +143,12 @@ struct ReadoutConfig
 ///                          channels grow by channel_growth each layer
 /// ```
 /// The stack is built via HypercubeCNN's architecture product (`LayerSpec` /
-/// `HCNNConfig`) from @c dim: by default L = min(dim - 2, 2) Conv(+Pool) stages
-/// (override with @ref ReadoutConfig::num_layers), the first conv using
-/// @ref ReadoutConfig::conv_channels channels. Prefer @c dim >= 5 so the
-/// default pooled stack has room (asserted at build time).
+/// `HCNNConfig`) from @c dim (valid **[3, 30]**): by default L = min(dim - 2, 2)
+/// Conv(+Pool) stages (override with @ref ReadoutConfig::num_layers), the first
+/// conv using @ref ReadoutConfig::conv_channels channels. With pooling on,
+/// `num_layers` must be `<= dim-2` so the stack leaves dim >= 2. Prefer
+/// @c dim >= 5 for a roomier default pooled stack; that is guidance, not a
+/// hard floor.
 ///
 /// ## Lifecycle
 /// Pick a training path:
@@ -236,9 +241,10 @@ public:
     [[nodiscard]] size_t NumOutputs() const { return num_outputs_; }
     /// @brief Length of the input field the network expects, N = 2^dim.
     [[nodiscard]] size_t NumFeatures() const { return num_features_; }
-    /// @brief Always true — reports that the network exists and has weights worth
-    /// persisting (the net_ invariant), not "has been fed training data".
-    [[nodiscard]] bool IsTrained() const { return net_ != nullptr; }
+    /// @brief True after a successful @ref Train / @ref TrainStep /
+    /// @ref TrainStepBatch, or after loading weights via @ref SetState /
+    /// @ref LoadHcnnModel. False on a freshly constructed (random-init) net.
+    [[nodiscard]] bool IsTrained() const { return trained_; }
     [[nodiscard]] const ReadoutConfig& GetConfig() const { return config_; }
 
     /// @brief 1-based epoch that produced the restored best weights after the last
@@ -263,6 +269,9 @@ public:
     void SetState(std::vector<double> weights,
                   ReadoutLoadMode mode = ReadoutLoadMode::Eval);
 
+    /// Arch sidecar `format` token written by @ref SaveHcnnModel (`.arch.json`).
+    static constexpr const char* kArchSidecarFormat =
+        "hypercube_etalon_readout_arch";
     /// Arch sidecar format version written by @ref SaveHcnnModel (`.arch.json`).
     static constexpr int kArchSidecarVersion = 1;
 
@@ -288,6 +297,7 @@ private:
     size_t num_features_ = 0;
     size_t num_outputs_ = 1;
     int best_epoch_ = 0; ///< See @ref BestEpoch.
+    bool trained_ = false; ///< See @ref IsTrained.
 
     void build_architecture();
 };

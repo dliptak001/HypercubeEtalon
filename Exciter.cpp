@@ -16,7 +16,7 @@ Exciter::Exciter(const ExciterConfig& cfg)
       weight_scaling_(cfg.weight_scaling)
 {
     if (dim_ < 4 || dim_ > 10)
-        throw std::invalid_argument("dim must be in 4 <= dim <= 10");
+        throw std::invalid_argument("Exciter: dim must be in 4 <= dim <= 10");
 
     n_ = 1ULL << dim_;
     num_weights_ = n_ * dim_;

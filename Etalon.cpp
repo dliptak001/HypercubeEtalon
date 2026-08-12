@@ -108,6 +108,25 @@ void Etalon::Run(std::span<const float> x)
     MapInto(x, last_features_);
 }
 
+void Etalon::MapBatchInto(std::span<const float> fields_flat,
+                          std::vector<float>& out_features)
+{
+    if (fields_flat.size() % n_ != 0)
+    {
+        throw std::invalid_argument(
+            "Etalon: fields_flat length must be a multiple of N");
+    }
+
+    const size_t count = fields_flat.size() / n_;
+    out_features.resize(count * n_);
+    for (size_t i = 0; i < count; ++i)
+    {
+        MapInto(fields_flat.subspan(i * n_, n_), last_features_);
+        std::memcpy(out_features.data() + i * n_, last_features_.data(),
+                    n_ * sizeof(float));
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Collect
 // ---------------------------------------------------------------------------
@@ -311,4 +330,60 @@ double Etalon::R2OnCollected() const
         return 0.0;
     return readout_->R2(collected_features_.data(), collected_targets_.data(),
                         num_collected_);
+}
+
+double Etalon::Accuracy(std::span<const float> fields_flat,
+                        std::span<const int> labels)
+{
+    RequireClassification();
+    if (fields_flat.size() % n_ != 0)
+    {
+        throw std::invalid_argument(
+            "Etalon::Accuracy: fields_flat length must be a multiple of N");
+    }
+    const size_t count = fields_flat.size() / n_;
+    if (labels.size() != count)
+    {
+        throw std::invalid_argument(
+            "Etalon::Accuracy: labels.size() must equal field count");
+    }
+    if (count == 0)
+        return 0.0;
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (labels[i] < 0 || labels[i] >= readout_cfg_.num_outputs)
+        {
+            throw std::invalid_argument(
+                "Etalon::Accuracy: label out of range");
+        }
+    }
+
+    std::vector<float> feats;
+    MapBatchInto(fields_flat, feats);
+    return readout_->Accuracy(feats.data(), labels.data(), count);
+}
+
+double Etalon::R2(std::span<const float> fields_flat,
+                  std::span<const float> targets_flat)
+{
+    RequireRegression();
+    if (fields_flat.size() % n_ != 0)
+    {
+        throw std::invalid_argument(
+            "Etalon::R2: fields_flat length must be a multiple of N");
+    }
+    const size_t count = fields_flat.size() / n_;
+    const size_t no = static_cast<size_t>(readout_cfg_.num_outputs);
+    if (targets_flat.size() != count * no)
+    {
+        throw std::invalid_argument(
+            "Etalon::R2: targets_flat length must equal count * num_outputs");
+    }
+    if (count == 0)
+        return 0.0;
+
+    std::vector<float> feats;
+    MapBatchInto(fields_flat, feats);
+    return readout_->R2(feats.data(), targets_flat.data(), count);
 }
