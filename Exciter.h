@@ -8,9 +8,9 @@
 /// @brief Construction-time parameters for @ref Exciter.
 struct ExciterConfig
 {
-    /// Hypercube dimension; neuron count N = 2^dim. Valid range **[4, 10]**:
-    /// 4 is the smallest cube with a useful neighbor star; 10 is the cost cap
-    /// (N = 1024, bank is O(N^2 · dim)).
+    /// Hypercube dimension; neuron count N = 2^dim. Valid range **[4, 12]**:
+    /// 4 is the smallest cube with a useful neighbor star; 12 is the cost cap
+    /// (N = 4096). Default walk is a half-cube (`s = 1`).
     size_t dim = 8;
 
     /// Master RNG seed for neighbor weight draws.
@@ -21,6 +21,13 @@ struct ExciterConfig
 
     /// Scale on neighbor weight draws: U(-1,1) × weight_scaling.
     float weight_scaling = 0.02f;
+
+    /// Pin this many high bits: bounce on a (dim-s)-face through r.
+    /// 0 = whole cube, 1 = half (default), 2 = quarter, …
+    /// Valid range **[0, dim)**, so the walk has at least two corners
+    /// (M = N >> s >= 2). Full star: off-face neighbors stay at the
+    /// scaled input.
+    size_t s = 1;
 };
 
 /// Hypercube field exciter: fixed neighbor weights, XOR-rotated F/B sweeps.
@@ -49,6 +56,11 @@ public:
 
     [[nodiscard]] size_t Size() const { return n_; }
 
+    [[nodiscard]] size_t S() const { return s_; }
+
+    /// Corners visited per bounce: M = N >> s.
+    [[nodiscard]] size_t WalkSize() const { return m_; }
+
 private:
     explicit Exciter(const ExciterConfig& cfg);
 
@@ -56,6 +68,8 @@ private:
 
     size_t dim_ = 0;
     size_t n_ = 0;
+    size_t s_ = 0;
+    size_t m_ = 0; ///< N >> s
     size_t num_weights_ = 0; ///< N · dim
 
     std::vector<float> state_;
@@ -66,5 +80,6 @@ private:
     float weight_scaling_ = 0.02f;
 
     void Initialize();
-    float ExciteRotation(size_t v_rotation);
+    void UpdateSite(size_t vv);
+    float ExciteRotation(size_t r);
 };

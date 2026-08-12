@@ -52,9 +52,9 @@ leaderboard run. The soft pass/fail floor is on **bypass** (pack + readout
 still work). Exciter scales are a first guess; a losing bank is a result,
 not a broken demo.
 
-A full 60k collect at dim 10 is one Exciter bank pass per image
-(`O(N^2 · dim)` tanh updates). Serial, that is hours. Raise `kTrainPerClass`
-only after the bank is cheaper.
+A full 60k collect at dim 10 is one Exciter bank pass per image.
+Even with the default half-cube walk that is a lot of tanh updates.
+Raise `kTrainPerClass` only when you mean to wait.
 
 Do **not** treat the subset score as the best this family can do.
 HypercubeCNN alone has already shown about 99.5% on MNIST; this example is

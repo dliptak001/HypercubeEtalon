@@ -15,7 +15,7 @@
 /// Typical knobs: @c exciter.dim / scales / seed, and @c readout.num_outputs /
 /// @c readout.task / training hyperparameters. Leave @c readout.dim at 0 to
 /// auto-match the Exciter dim (feature length N = 2^dim). Product dim is the
-/// Exciter range **[4, 10]**; prefer >= 5 so a pooled readout has room.
+/// Exciter range **[4, 12]**; prefer >= 5 so a pooled readout has room.
 struct EtalonConfig
 {
     ExciterConfig exciter{};
