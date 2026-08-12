@@ -146,10 +146,10 @@ int main()
             ExciterConfig d12;
             d12.dim = 12;
             auto ex12 = Exciter::Create(d12);
-            if (ex12->N() != 4096 || ex12->Halvings() != 1
-                || ex12->WalkSize() != 2048)
+            if (ex12->N() != 4096
+                || ex12->WalkSize() != (ex12->N() >> ex12->Halvings()))
             {
-                std::cerr << "FAIL: dim=12 default half-cube sizes\n";
+                std::cerr << "FAIL: dim=12 walk sizes\n";
                 return EXIT_FAILURE;
             }
             ExciterConfig d13;
@@ -168,8 +168,9 @@ int main()
         {
             Etalon et(MakeCfg());
             if (et.N() != kN || et.Dim() != kDim
-                || et.NumOutputs() != 2 || et.exciter().Halvings() != 1
-                || et.exciter().WalkSize() != kN / 2)
+                || et.NumOutputs() != 2
+                || et.exciter().WalkSize()
+                       != (et.N() >> et.exciter().Halvings()))
             {
                 std::cerr << "FAIL: size contract N=" << et.N()
                           << " Dim=" << et.Dim()

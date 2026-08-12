@@ -7,7 +7,10 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstring>
 #include <fstream>
+#include <numeric>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -107,6 +110,49 @@ static std::vector<hcnn::LayerSpec> make_layer_specs(const ReadoutConfig& cfg)
     return specs;
 }
 
+/// Hold-out size: 0 means score the full set (and train on all of it).
+static void holdout_counts(const ReadoutConfig& cfg, size_t num_samples,
+                           size_t& n_train, size_t& n_score)
+{
+    n_train = num_samples;
+    n_score = num_samples;
+    if (!cfg.restore_best_epoch || cfg.best_epoch_holdout_frac <= 0.0f
+        || num_samples < 2)
+        return;
+
+    float frac = cfg.best_epoch_holdout_frac;
+    if (frac < 0.0f) frac = 0.0f;
+    if (frac > 0.5f) frac = 0.5f;
+    size_t n_val = static_cast<size_t>(
+        static_cast<float>(num_samples) * frac + 0.5f);
+    if (n_val < 1) n_val = 1;
+    if (n_val >= num_samples) n_val = num_samples / 2;
+    n_train = num_samples - n_val;
+    n_score = n_val;
+}
+
+static std::vector<size_t> shuffled_order(size_t n, uint64_t seed)
+{
+    std::vector<size_t> idx(n);
+    std::iota(idx.begin(), idx.end(), 0);
+    if (n > 1)
+    {
+        std::mt19937_64 rng(seed ^ 0x484F4C444F555400ULL);
+        std::shuffle(idx.begin(), idx.end(), rng);
+    }
+    return idx;
+}
+
+static void gather_states(const float* src, float* dst,
+                          const std::vector<size_t>& order, size_t n_feat)
+{
+    for (size_t i = 0; i < order.size(); ++i)
+    {
+        std::memcpy(dst + i * n_feat, src + order[i] * n_feat,
+                    n_feat * sizeof(float));
+    }
+}
+
 // ---------------------------------------------------------------------------
 //  Lifecycle
 // ---------------------------------------------------------------------------
@@ -178,29 +224,37 @@ void Readout::Train(const float* states, const float* targets,
                             ? config_.lr_decay_epochs
                             : config_.epochs;
 
-    // Optional tail hold-out for best-epoch selection (train on the prefix).
-    size_t n_train = num_samples;
-    size_t n_score = num_samples;
+    size_t n_train = 0;
+    size_t n_score = 0;
+    holdout_counts(config_, num_samples, n_train, n_score);
+
+    const float* train_states = states;
+    const float* train_targets = targets;
     const float* score_states = states;
     const float* score_targets = targets;
+    std::vector<float> shuf_x;
+    std::vector<float> shuf_y;
 
-    if (config_.restore_best_epoch && config_.best_epoch_holdout_frac > 0.0f
-        && num_samples >= 2) {
-        float frac = config_.best_epoch_holdout_frac;
-        if (frac < 0.0f) frac = 0.0f;
-        if (frac > 0.5f) frac = 0.5f;
-        size_t n_val = static_cast<size_t>(
-            static_cast<float>(num_samples) * frac + 0.5f);
-        if (n_val < 1) n_val = 1;
-        if (n_val >= num_samples) n_val = num_samples / 2;
-        n_train = num_samples - n_val;
-        n_score = n_val;
-        score_states = states + n_train * static_cast<size_t>(n);
-        score_targets = targets + n_train * K;
+    if (n_train != num_samples)
+    {
+        const auto order = shuffled_order(num_samples, config_.seed);
+        const size_t nf = static_cast<size_t>(n);
+        shuf_x.resize(num_samples * nf);
+        shuf_y.resize(num_samples * K);
+        gather_states(states, shuf_x.data(), order, nf);
+        for (size_t i = 0; i < order.size(); ++i)
+        {
+            std::memcpy(shuf_y.data() + i * K, targets + order[i] * K,
+                        K * sizeof(float));
+        }
+        train_states = shuf_x.data();
+        train_targets = shuf_y.data();
+        score_states = shuf_x.data() + n_train * nf;
+        score_targets = shuf_y.data() + n_train * K;
     }
 
     const hcnn::HCNNInputView train_in = hcnn::HCNNInputView::from_full(
-        states, static_cast<int>(n_train), n);
+        train_states, static_cast<int>(n_train), n);
 
     hcnn::HCNNTrainer trainer(*net_);
     trainer.params().momentum = config_.momentum;
@@ -210,7 +264,7 @@ void Readout::Train(const float* states, const float* targets,
     hcnn::HCNNBestMetricCheckpoint best_reg;
 
     for (int e = 0; e < config_.epochs; ++e) {
-        trainer.train_epoch(train_in, targets, config_.batch_size, e);
+        trainer.train_epoch(train_in, train_targets, config_.batch_size, e);
 
         if (!config_.restore_best_epoch || n_score == 0)
             continue;
@@ -247,28 +301,34 @@ void Readout::Train(const float* states, const int* class_labels,
                             ? config_.lr_decay_epochs
                             : config_.epochs;
 
-    size_t n_train = num_samples;
-    size_t n_score = num_samples;
+    size_t n_train = 0;
+    size_t n_score = 0;
+    holdout_counts(config_, num_samples, n_train, n_score);
+
+    const float* train_states = states;
+    const int* train_labels = class_labels;
     const float* score_states = states;
     const int* score_int = class_labels;
+    std::vector<float> shuf_x;
+    std::vector<int> shuf_y;
 
-    if (config_.restore_best_epoch && config_.best_epoch_holdout_frac > 0.0f
-        && num_samples >= 2) {
-        float frac = config_.best_epoch_holdout_frac;
-        if (frac < 0.0f) frac = 0.0f;
-        if (frac > 0.5f) frac = 0.5f;
-        size_t n_val = static_cast<size_t>(
-            static_cast<float>(num_samples) * frac + 0.5f);
-        if (n_val < 1) n_val = 1;
-        if (n_val >= num_samples) n_val = num_samples / 2;
-        n_train = num_samples - n_val;
-        n_score = n_val;
-        score_states = states + n_train * static_cast<size_t>(n);
-        score_int = class_labels + n_train;
+    if (n_train != num_samples)
+    {
+        const auto order = shuffled_order(num_samples, config_.seed);
+        const size_t nf = static_cast<size_t>(n);
+        shuf_x.resize(num_samples * nf);
+        shuf_y.resize(num_samples);
+        gather_states(states, shuf_x.data(), order, nf);
+        for (size_t i = 0; i < order.size(); ++i)
+            shuf_y[i] = class_labels[order[i]];
+        train_states = shuf_x.data();
+        train_labels = shuf_y.data();
+        score_states = shuf_x.data() + n_train * nf;
+        score_int = shuf_y.data() + n_train;
     }
 
     const hcnn::HCNNInputView train_in = hcnn::HCNNInputView::from_full(
-        states, static_cast<int>(n_train), n);
+        train_states, static_cast<int>(n_train), n);
 
     hcnn::HCNNTrainer trainer(*net_);
     trainer.params().momentum = config_.momentum;
@@ -278,7 +338,7 @@ void Readout::Train(const float* states, const int* class_labels,
     hcnn::HCNNDualCheckpoint best_cls;
 
     for (int e = 0; e < config_.epochs; ++e) {
-        trainer.train_epoch(train_in, class_labels, config_.batch_size, e);
+        trainer.train_epoch(train_in, train_labels, config_.batch_size, e);
 
         if (!config_.restore_best_epoch || n_score == 0)
             continue;
