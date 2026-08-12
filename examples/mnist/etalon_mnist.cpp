@@ -4,13 +4,8 @@
 /// Pipeline: IDX load → balanced subset → PadLowCenter pack → CollectBatch
 /// → TrainOnCollected → Accuracy on packed test fields.
 ///
-/// Always scores two paths on the same packed fields:
-///   Exciter  — pack → ExciteCube → readout
-///   bypass   — pack → readout
-///
-/// Defaults are a **small balanced subset** (not the 60k recipe). A full
-/// dim=10 Exciter pass over 60k is O(N^2 · dim) per image and is gated on
-/// a faster bank (see work list item 5).
+/// Product path: pack → Exciter → readout → held-out Accuracy.
+/// Bypass (pack → readout, no walk) is opt-in via kRunBypass.
 ///
 /// Data: C:\HypercubeEtalon\data, then C:\HypercubeWTF\data
 /// (see examples/README.md appendix).
@@ -111,18 +106,17 @@ static EtalonConfig MakeBaseConfig()
 // =============================================================================
 
 static constexpr PackMode kPack = PackMode::PadLowCenter;
-static constexpr int kTrainPerClass = 100; // 1000 train; set 0 to use file order cap
+static constexpr int kTrainPerClass = 100; // 1000 train
 static constexpr int kTestPerClass = 50;   // 500 test
 static constexpr float kPad = -1.0f;
 static constexpr int kImgSide = 28;
 static constexpr int kImgPixels = kImgSide * kImgSide;
-// Health gate is the bypass path (pack + readout). The Exciter recipe is
-// still a first guess — do not fail the demo just because the bank loses.
-static constexpr double kMinBypassTestAcc = 0.50;
-static constexpr size_t kCollectProgress = 64;
+// Soft floor on the product path (not chance on 10 classes).
+static constexpr double kMinExciterTestAcc = 0.50;
+static constexpr size_t kCollectProgress = 1000;
 
-// Set false to skip the expensive bank and only run bypass (pack → readout).
-static constexpr bool kRunExciter = true;
+// Occasional consistency check: pack → readout with no Exciter walk.
+static constexpr bool kRunBypass = false;
 
 // =============================================================================
 
@@ -298,43 +292,38 @@ int main(int argc, char** argv)
         PackSet(train, emb, train_fields, train_labels);
         PackSet(test, emb, test_fields, test_labels);
 
-        PathResult exciter{};
-        if (kRunExciter)
-        {
-            EtalonConfig cfg = base;
-            cfg.bypass_exciter = false;
-            exciter = RunPath("etalon_mnist/exciter", cfg,
-                              train_fields, train_labels,
-                              test_fields, test_labels,
-                              /*progress=*/true);
-        }
-
-        EtalonConfig bypass_cfg = base;
-        bypass_cfg.bypass_exciter = true;
-        const PathResult bypass = RunPath(
-            "etalon_mnist/bypass", bypass_cfg,
+        EtalonConfig cfg = base;
+        cfg.bypass_exciter = false;
+        const PathResult exciter = RunPath(
+            "etalon_mnist/exciter", cfg,
             train_fields, train_labels, test_fields, test_labels,
-            /*progress=*/false);
+            /*progress=*/true);
 
-        if (kRunExciter)
+        if (kRunBypass)
         {
+            EtalonConfig bypass_cfg = base;
+            bypass_cfg.bypass_exciter = true;
+            const PathResult bypass = RunPath(
+                "etalon_mnist/bypass", bypass_cfg,
+                train_fields, train_labels, test_fields, test_labels,
+                /*progress=*/false);
             std::printf("etalon_mnist: test_acc delta (exciter - bypass) = %+.3f\n",
                         exciter.test_acc - bypass.test_acc);
             if (bypass.test_acc > exciter.test_acc + 0.05)
             {
-                std::printf("etalon_mnist: note: bypass wins — packed digits "
+                std::printf("etalon_mnist: note: bypass wins -- packed digits "
                             "are already a readout task; the bank has no "
                             "winning recipe yet\n");
             }
             std::fflush(stdout);
         }
 
-        if (bypass.test_acc < kMinBypassTestAcc)
+        if (exciter.test_acc < kMinExciterTestAcc)
         {
             std::fprintf(stderr,
-                         "etalon_mnist: bypass test accuracy too low "
-                         "(need >= %.2f) — pack/readout/data path is broken\n",
-                         kMinBypassTestAcc);
+                         "etalon_mnist: Exciter test accuracy too low "
+                         "(need >= %.2f)\n",
+                         kMinExciterTestAcc);
         }
         else
         {

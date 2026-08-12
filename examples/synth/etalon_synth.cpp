@@ -4,10 +4,8 @@
 /// Six classes of length-N cube fields: multi-tone carriers in the low half,
 /// sparse peaks in the high half, plus deterministic noise. Not a vision claim.
 ///
-/// Runs two paths on the same packed fields:
-///   Exciter  — field → ExciteCube → readout
-///   bypass   — field → readout (ablation)
-/// so a ceiling on both is visible instead of hidden behind one knob.
+/// Product path: field → Exciter → readout → held-out Accuracy.
+/// Bypass (field → readout, no walk) is opt-in via kRunBypass.
 ///
 /// No data files. Soft floor is on the Exciter test accuracy.
 
@@ -33,6 +31,8 @@ static constexpr int kTestPerClass = 32;
 static constexpr int kTestRepBase = 10'000; // test reps never reuse train (label, rep)
 static constexpr double kMinExciterTestAcc = 0.70;
 static constexpr float kNoiseStd = 0.22f;
+// Occasional consistency check: field → readout with no Exciter walk.
+static constexpr bool kRunBypass = false;
 
 // =============================================================================
 // Product knobs (edit here)
@@ -236,27 +236,29 @@ int main()
             "etalon_synth/exciter", exciter_cfg,
             train_fields, train_labels, test_fields, test_labels);
 
-        EtalonConfig bypass_cfg = base;
-        bypass_cfg.bypass_exciter = true;
-        const PathResult bypass = RunPath(
-            "etalon_synth/bypass", bypass_cfg,
-            train_fields, train_labels, test_fields, test_labels);
+        if (kRunBypass)
+        {
+            EtalonConfig bypass_cfg = base;
+            bypass_cfg.bypass_exciter = true;
+            const PathResult bypass = RunPath(
+                "etalon_synth/bypass", bypass_cfg,
+                train_fields, train_labels, test_fields, test_labels);
 
-        const double delta = exciter.test_acc - bypass.test_acc;
-        std::printf("etalon_synth: test_acc delta (exciter - bypass) = %+.3f\n",
-                    delta);
-        if (exciter.test_acc >= 0.98 && bypass.test_acc >= 0.98)
-        {
-            std::printf("etalon_synth: note: both paths near ceiling — "
-                        "task may be too easy to credit the Exciter\n");
+            std::printf("etalon_synth: test_acc delta (exciter - bypass) = %+.3f\n",
+                        exciter.test_acc - bypass.test_acc);
+            if (exciter.test_acc >= 0.98 && bypass.test_acc >= 0.98)
+            {
+                std::printf("etalon_synth: note: both paths near ceiling -- "
+                            "task may be too easy to credit the Exciter\n");
+            }
+            else if (bypass.test_acc > exciter.test_acc + 0.05)
+            {
+                std::printf("etalon_synth: note: bypass wins -- this pattern "
+                            "family is already separable on the raw field; "
+                            "the bank is not a free win\n");
+            }
+            std::fflush(stdout);
         }
-        else if (bypass.test_acc > exciter.test_acc + 0.05)
-        {
-            std::printf("etalon_synth: note: bypass wins — this pattern family "
-                        "is already separable on the raw field; the bank is "
-                        "not a free win\n");
-        }
-        std::fflush(stdout);
 
         if (exciter.test_acc < kMinExciterTestAcc)
         {

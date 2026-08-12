@@ -161,8 +161,9 @@ of bounces. Features are always length N.
 
 ## Examples
 
-[`examples/`](examples/README.md) has two programs, both of which score
-the Exciter against the skip-the-walk baseline on a held-out set.
+[`examples/`](examples/README.md) has two programs that run the Exciter
+on a held-out set. Set `kRunBypass` in a demo if you want the skip-the-walk
+check.
 
 - `etalon_synth` — six made-up classes, no data files
 - `etalon_mnist` — packed digits, from a fixed folder (see that README)

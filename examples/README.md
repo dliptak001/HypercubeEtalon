@@ -8,13 +8,8 @@ The library is collect → train → predict. These programs own everything
 outside that: synthetic patterns, MNIST IDX, and how a 28x28 image sits on
 the cube.
 
-Each demo runs **two paths on the same fields**:
-
-- **Exciter** — field → `ExciteCube` → readout
-- **bypass** — field → readout (ablation)
-
-A large delta is the only in-tree evidence that the bank is doing work. If
-both paths sit on the ceiling, the task is too easy to credit the Exciter.
+The product path is the **Exciter**. Bypass (skip the walk) is an optional
+consistency check: set `kRunBypass` in the demo `.cpp` when you want it.
 
 Build in **Release**, then run the binary you care about. Debug is slower
 and, with `-ffast-math` off, not the number you want to quote.
@@ -48,9 +43,7 @@ which fills N = 1024 at dim 10).
 
 The shipped constants take **100 train / 50 test per digit** (1000 / 500),
 class-balanced, first-in-file-order. That is a demo you can finish, not a
-leaderboard run. The soft pass/fail floor is on **bypass** (pack + readout
-still work). Exciter scales are a first guess; a losing bank is a result,
-not a broken demo.
+leaderboard run. The soft pass/fail floor is on **Exciter** test accuracy.
 
 A full 60k collect at dim 10 is one Exciter bank pass per image.
 Even with the default half-cube walk that is a lot of tanh updates.
