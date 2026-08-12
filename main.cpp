@@ -114,37 +114,38 @@ int main()
             }
 
             EtalonConfig face = MakeCfg();
-            face.exciter.s = 1;
+            face.exciter.halvings = 1;
             Etalon et_s(face);
-            if (et_s.exciter().S() != 1 || et_s.exciter().WalkSize() != kN / 2)
+            if (et_s.exciter().Halvings() != 1
+                || et_s.exciter().WalkSize() != kN / 2)
             {
-                std::cerr << "FAIL: s=1 walk size\n";
+                std::cerr << "FAIL: halvings=1 walk size\n";
                 return EXIT_FAILURE;
             }
             auto xs = MakeField(kN, 0, 0);
             et_s.Run(xs);
             if (et_s.LastFeatures().size() != kN || !AllFinite(et_s.LastFeatures()))
             {
-                std::cerr << "FAIL: s=1 Run\n";
+                std::cerr << "FAIL: halvings=1 Run\n";
                 return EXIT_FAILURE;
             }
 
             ExciterConfig bad_s;
             bad_s.dim = 5;
-            bad_s.s = 5;
+            bad_s.halvings = 5;
             threw = false;
             try { (void)Exciter::Create(bad_s); }
             catch (const std::invalid_argument&) { threw = true; }
             if (!threw)
             {
-                std::cerr << "FAIL: s >= dim should throw\n";
+                std::cerr << "FAIL: halvings >= dim should throw\n";
                 return EXIT_FAILURE;
             }
 
             ExciterConfig d12;
             d12.dim = 12;
             auto ex12 = Exciter::Create(d12);
-            if (ex12->Size() != 4096 || ex12->S() != 1
+            if (ex12->N() != 4096 || ex12->Halvings() != 1
                 || ex12->WalkSize() != 2048)
             {
                 std::cerr << "FAIL: dim=12 default half-cube sizes\n";
@@ -166,7 +167,7 @@ int main()
         {
             Etalon et(MakeCfg());
             if (et.N() != kN || et.Dim() != kDim || et.FeatureSize() != kN
-                || et.NumOutputs() != 2 || et.exciter().S() != 1
+                || et.NumOutputs() != 2 || et.exciter().Halvings() != 1
                 || et.exciter().WalkSize() != kN / 2)
             {
                 std::cerr << "FAIL: size contract N=" << et.N()

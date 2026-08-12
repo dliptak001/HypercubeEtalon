@@ -10,7 +10,7 @@ struct ExciterConfig
 {
     /// Hypercube dimension; neuron count N = 2^dim. Valid range **[4, 12]**:
     /// 4 is the smallest cube with a useful neighbor star; 12 is the cost cap
-    /// (N = 4096). Default walk is a half-cube (`s = 1`).
+    /// (N = 4096). Default walk is a half-cube (`halvings = 1`).
     size_t dim = 8;
 
     /// Master RNG seed for neighbor weight draws.
@@ -22,20 +22,18 @@ struct ExciterConfig
     /// Scale on neighbor weight draws: U(-1,1) × weight_scaling.
     float weight_scaling = 0.02f;
 
-    /// Pin this many high bits: bounce on a (dim-s)-face through r.
-    /// 0 = whole cube, 1 = half (default), 2 = quarter, …
-    /// Valid range **[0, dim)**, so the walk has at least two corners
-    /// (M = N >> s >= 2). Full star: off-face neighbors stay at the
-    /// scaled input.
-    size_t s = 1;
+    /// How many times to halve the bounce: 0 = whole cube, 1 = half
+    /// (default), 2 = quarter, … Pins that many high bits; walk is a
+    /// (dim-halvings)-face through r. Valid range **[0, dim)** so
+    /// M = N >> halvings >= 2. Full star: off-face neighbors stay at
+    /// the scaled input.
+    size_t halvings = 1;
 };
 
 /// Hypercube field exciter: fixed neighbor weights, XOR-rotated F/B sweeps.
 class Exciter
 {
 public:
-    static constexpr uint32_t NearestMask(size_t i) { return 1u << i; }
-
     static std::unique_ptr<Exciter> Create(const ExciterConfig& cfg)
     {
         return std::unique_ptr<Exciter>(new Exciter(cfg));
@@ -45,7 +43,7 @@ public:
     Exciter& operator=(const Exciter&) = delete;
 
     /// Scale @p input_field in place by input_scaling; per rotation reload
-    /// state, run F/B, write output[r]. Length must be Size(); non-null;
+    /// state, run F/B, write output[r]. Length must be N(); non-null;
     /// must not alias internals. Re-calling on same buffer scales again.
     /// @return length-N output; valid until next ExciteCube or destroy.
     [[nodiscard]] const float* ExciteCube(float* input_field);
@@ -54,23 +52,25 @@ public:
 
     [[nodiscard]] size_t Dim() const { return dim_; }
 
-    [[nodiscard]] size_t Size() const { return n_; }
+    [[nodiscard]] size_t N() const { return n_; }
+    [[nodiscard]] size_t Size() const { return n_; } ///< Same as @ref N.
 
-    [[nodiscard]] size_t S() const { return s_; }
+    [[nodiscard]] size_t Halvings() const { return halvings_; }
 
-    /// Corners visited per bounce: M = N >> s.
+    /// Corners visited per bounce: M = N >> halvings.
     [[nodiscard]] size_t WalkSize() const { return m_; }
 
 private:
+    static constexpr uint32_t NearestMask(size_t i) { return 1u << i; }
+
     explicit Exciter(const ExciterConfig& cfg);
 
     uint64_t rng_seed_ = 0;
 
     size_t dim_ = 0;
     size_t n_ = 0;
-    size_t s_ = 0;
-    size_t m_ = 0; ///< N >> s
-    size_t num_weights_ = 0; ///< N · dim
+    size_t halvings_ = 0;
+    size_t m_ = 0; ///< N >> halvings
 
     std::vector<float> state_;
     std::vector<float> output_;

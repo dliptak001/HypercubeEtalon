@@ -49,7 +49,7 @@ Etalon::Etalon(const EtalonConfig& cfg)
 
     exciter_ = Exciter::Create(cfg.exciter);
     dim_ = exciter_->Dim();
-    n_ = exciter_->Size();
+    n_ = exciter_->N();
 
     // Auto-bind readout dim to the Exciter (feature length N = 2^dim).
     if (readout_cfg_.dim == 0)

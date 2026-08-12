@@ -25,7 +25,7 @@ never learn. Only the head does.
 `dim` is small. Four is the tiniest cube with a useful star of neighbors.
 Twelve is the cost cap (`N = 4096`). Five (`N = 32`) is the usual starting
 point: cheap, and roomy enough for the default pooled head. The default
-walk is a **half**-cube (`s = 1`).
+walk is a **half**-cube (`halvings = 1`).
 
 ## A bounce
 
@@ -41,7 +41,7 @@ By default the walk uses a **half**-cube: `v = 0 … M−1` with
 `M = N / 2` and physical corner `v xor r` (so `v = 0` is `r`, and
 `v = M−1` is the far corner of that face). Turn around there. Come back
 `v = M−2 … 0`. Do not write that far corner a second time on the way in.
-Set `s = 0` if you want the whole cube (`M = N`).
+Set `halvings = 0` if you want the whole cube (`M = N`).
 
 When you arrive home, keep `state[r]`. That is the sample for this start.
 
@@ -64,13 +64,13 @@ reloading.
 A bounce does not need the far corner of the *whole* cube. Half a cube is
 still a cube. So is a quarter, or an eighth.
 
-Set `exciter.s` to `0, 1, 2, …` (whole, half, quarter, …) and each bounce
-walks only `M = N / 2ˢ` corners: the face through `r` whose low `dim−s`
-bits are free. It still starts at `r`, reflects at the far corner **of
-that face**, and comes home. You still write one sample per `r`, so the
-feature vector is still length N. Each walk is `2ˢ` times cheaper.
-`s` must be less than `dim` (at least two corners on the walk). Default
-is `1` — half the cube.
+Set `exciter.halvings` to `0, 1, 2, …` (whole, half, quarter, …) and
+each bounce walks only `M = N >> halvings` corners: the face through `r`
+whose low `dim − halvings` bits are free. It still starts at `r`,
+reflects at the far corner **of that face**, and comes home. You still
+write one sample per `r`, so the feature vector is still length N. Each
+extra halvings cuts the walk in half. `halvings` must be less than
+`dim` (at least two corners on the walk). Default is `1` — half the cube.
 
 Starts that share the same high bits walk the same face from different
 doors. Cheaper walks, not fewer samples.
@@ -89,7 +89,7 @@ Parallelizing the N independent starts is a later job.
 ```text
 EtalonConfig cfg;
 cfg.exciter.dim = 5;                 // N = 32
-cfg.exciter.s = 1;                   // 0 = whole cube; 1 = half (default); 2 = quarter
+cfg.exciter.halvings = 1;            // 0 = whole cube; 1 = half (default); 2 = quarter
 cfg.exciter.input_scaling = 1.0f;
 cfg.exciter.weight_scaling = 0.5f;
 cfg.readout.dim = 0;                 // auto: same as the Exciter
@@ -129,7 +129,7 @@ fields for that.
 
 | Piece | dim | Why |
 |-------|-----|-----|
-| Exciter | 4 … 12 | Smallest useful star … cost cap (`N = 4096`); default `s = 1` |
+| Exciter | 4 … 12 | Smallest useful star … cost cap (`N = 4096`); default `halvings = 1` |
 | Readout | 3 … 30 | What HypercubeCNN allows. With pooling, `num_layers ≤ dim−2` |
 | Etalon | 4 … 12 | Matches the Exciter; `readout.dim` fills in if you leave it 0 |
 
