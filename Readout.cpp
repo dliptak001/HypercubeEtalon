@@ -265,6 +265,8 @@ void Readout::Train(const float* states, const float* targets,
 
     for (int e = 0; e < config_.epochs; ++e) {
         trainer.train_epoch(train_in, train_targets, config_.batch_size, e);
+        if (config_.epoch_tick)
+            config_.epoch_tick();
 
         if (!config_.restore_best_epoch || n_score == 0)
             continue;
@@ -339,6 +341,8 @@ void Readout::Train(const float* states, const int* class_labels,
 
     for (int e = 0; e < config_.epochs; ++e) {
         trainer.train_epoch(train_in, train_labels, config_.batch_size, e);
+        if (config_.epoch_tick)
+            config_.epoch_tick();
 
         if (!config_.restore_best_epoch || n_score == 0)
             continue;

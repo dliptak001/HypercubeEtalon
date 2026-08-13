@@ -13,10 +13,15 @@ inline EtalonConfig MakeConfig()
 {
     EtalonConfig cfg;
     cfg.exciter.dim = kDim;
+    cfg.exciter.halvings = 7;
     cfg.readout.dim = 0;
     cfg.readout.num_outputs = static_cast<int>(kN);
     cfg.readout.task = ReadoutTask::Regression;
+    cfg.readout.epochs = 20;
+    cfg.readout.activation = ReadoutActivation::NONE;
+
     cfg.collect_threads = 1;
+
     return cfg;
 }
 

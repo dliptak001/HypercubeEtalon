@@ -94,6 +94,9 @@ struct ReadoutConfig
     /// buffers are not mutated). 0 = score the full training set. Clamped
     /// to [0, 0.5]. Requires at least 2 samples when > 0.
     float best_epoch_holdout_frac = 0.0f;
+
+    /// Optional. Called after each @ref Readout::Train epoch. Null by default.
+    void (*epoch_tick)() = nullptr;
 };
 
 /// @brief Trainable HypercubeCNN façade: length-N field → task outputs.

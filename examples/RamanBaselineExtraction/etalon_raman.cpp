@@ -6,11 +6,33 @@
 #include <filesystem>
 #include <stdexcept>
 
-static constexpr int kTrainSamples = 100;
-static constexpr int kTestSamples = 50;
+static constexpr int kTrainSamples = 1000;
+static constexpr int kTestSamples = 100;
 static constexpr bool kRunBypass = false;
 
 static constexpr const char* kDataRoot = "C:/MLPlayground/Datasets/data";
+
+static int s_epoch_on_line = 0;
+
+static void EpochTick()
+{
+    std::fputc('.', stdout);
+    if (++s_epoch_on_line == 10)
+    {
+        std::fputc('\n', stdout);
+        s_epoch_on_line = 0;
+    }
+    std::fflush(stdout);
+}
+
+static void FinishEpochTicks()
+{
+    if (s_epoch_on_line == 0)
+        return;
+    std::fputc('\n', stdout);
+    std::fflush(stdout);
+    s_epoch_on_line = 0;
+}
 
 int main()
 {
@@ -34,6 +56,7 @@ int main()
 
         EtalonConfig cfg = MakeConfig();
         cfg.bypass_exciter = kRunBypass;
+        cfg.readout.epoch_tick = EpochTick;
 
         BaselineExtractor ex(cfg);
         if (ex.N() != kN)
@@ -49,6 +72,7 @@ int main()
         std::fflush(stdout);
 
         ex.Train();
+        FinishEpochTicks();
         std::printf("etalon_raman: trained\n");
         std::fflush(stdout);
 

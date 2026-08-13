@@ -5,9 +5,6 @@ Regression example: take a Raman spectrum and estimate its **baseline**.
 The cube is **dim 11** (`N = 2048`). Input and readout target are the same
 length. The primary class is `BaselineExtractor`.
 
-This example is a shell so far. Data format is below; the train / score loop
-is not written yet.
-
 The example reads the dataset **in place** from
 `C:\MLPlayground\Datasets\data`. It does not copy files into this repo or
 into `C:\HypercubeEtalon\data`.
@@ -76,9 +73,33 @@ and both `xaxis.txt` files are all length 2048. Training and validation
 
 ---
 
+## Scale
+
+Same per-spectrum min/max as the C# trainer (from the **input**, never
+the label), then shifted from their `[0, 1]` to **[-1, 1]**:
+
+```text
+range = max - min
+u     = (x - min) / range  // C# [0, 1]
+norm  = 2 * u - 1          // here [-1, 1]
+x     = (norm + 1) * 0.5 * range + min
+
+If the spectrum is flat, range is 0, norm is 0, and denorm is min.
+```
+
+The label uses the **same** min/range as its matching `.data` spectrum, not
+its own min/max. Predict only has the input, so the scale has to come from
+there.
+
+Collect and train see only these normalized values. `Predict` denormalizes
+before it returns.
+
+---
+
 ## Error
 
-Score is **RMS** of predicted baseline vs `X.label.txt`. No curve fit.
+Score is **RMS** of the denormalized prediction vs raw `X.label.txt`.
+No curve fit.
 
 Per spectrum, over the 2048 bins:
 
