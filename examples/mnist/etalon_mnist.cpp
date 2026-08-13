@@ -7,8 +7,9 @@
 /// Product path: pack → Exciter → readout → held-out Accuracy.
 /// Bypass (pack → readout, no walk) is opt-in via kRunBypass.
 /// Optional test-only AWGN on the packed field (train clean). Demo knobs
-/// kTestNoiseSweep / Start / End / Step. Off = clean test. On = train once,
-/// then score start, start+step, ... while <= end and print a table.
+/// kTestNoiseSweep / Start / End / Step. Off = clean test. On = train once
+/// per path, then score start, start+step, ... while <= end and print a
+/// table. kRunBypass scores the same grid on the skip-the-walk path too.
 ///
 /// Data: C:\HypercubeEtalon\data (see examples/README.md appendix).
 ///
@@ -66,6 +67,11 @@ static const char* PackModeName(PackMode pack)
 // Product knobs
 // =============================================================================
 
+// Path-specific readout length. Bypass sees the packed field and converges
+// sooner; the Exciter bank wants the longer schedule.
+static constexpr int kExciterEpochs = 100;
+static constexpr int kBypassEpochs = 40;
+
 static EtalonConfig MakeBaseConfig()
 {
     EtalonConfig cfg;
@@ -73,7 +79,7 @@ static EtalonConfig MakeBaseConfig()
     // PadLow / PadLowCenter need N >= 784 → dim >= 10.
     cfg.exciter.dim = 10;
     cfg.exciter.seed = 38715376369942979ull;
-    cfg.exciter.halvings = 5;//6;
+    cfg.exciter.halvings = 6;
 
     // First-guess mixer. Too-small scales collapse the bank toward 0
     // (chance-level readout). These keep the first star O(1):
@@ -92,8 +98,8 @@ static EtalonConfig MakeBaseConfig()
     cfg.readout.conv_channels = 16;
     cfg.readout.channel_growth = 1;
     cfg.readout.activation = ReadoutActivation::TANH;
-    cfg.readout.epochs = 100; // bypass - 40, etalon - 100;
-    cfg.readout.batch_size = 32; // bypass - 32, etalon - 32;
+    cfg.readout.epochs = kExciterEpochs;
+    cfg.readout.batch_size = 32;
     cfg.readout.lr_max = 0.002f;
     cfg.readout.lr_min_frac = 0.005;
     cfg.readout.num_threads = 0; // HCNN auto
@@ -121,7 +127,7 @@ static constexpr double kMinExciterTestAcc = 0.50;
 static constexpr size_t kCollectProgress = 1000;
 
 // Occasional consistency check: pack → readout with no Exciter walk.
-static constexpr bool kRunBypass = false;
+static constexpr bool kRunBypass = true;
 
 // Test protocol: N(0,σ) on the packed field after PackSet, before
 // Accuracy. Not clamped. Independent of train_input_noise_sigma.
@@ -344,6 +350,55 @@ static void PrintNoiseSweepTable(const char* name, double train_acc,
     std::fflush(stdout);
 }
 
+static void PrintSweepCompare(std::span<const float> sigmas,
+                              std::span<const double> exciter_accs,
+                              std::span<const double> bypass_accs)
+{
+    std::printf("etalon_mnist: test_acc by sigma (exciter - bypass)\n");
+    std::printf("  sigma      exciter     bypass      delta\n");
+    std::printf("  ---------  --------    --------    ------\n");
+    for (size_t i = 0; i < sigmas.size(); ++i)
+    {
+        std::printf("  %9.4f  %8.3f    %8.3f    %+.3f\n",
+                    static_cast<double>(sigmas[i]),
+                    exciter_accs[i], bypass_accs[i],
+                    exciter_accs[i] - bypass_accs[i]);
+    }
+    std::fflush(stdout);
+}
+
+/// Score each sigma on a trained instance. Returns clean (σ=0) acc, or -1
+/// if the grid has no clean point.
+static double RunNoiseSweep(Etalon& et, const char* name,
+                            double train_acc, double collect_train_s,
+                            std::span<const float> clean_fields,
+                            std::span<const int> labels,
+                            std::span<const float> grid,
+                            std::vector<double>& accs,
+                            std::vector<double>& secs)
+{
+    accs.clear();
+    secs.clear();
+    accs.reserve(grid.size());
+    secs.reserve(grid.size());
+    double clean_acc = -1.0;
+    for (float sigma : grid)
+    {
+        std::printf("%s: scoring %zu test fields at sigma=%.4g...\n",
+                    name, labels.size(), static_cast<double>(sigma));
+        std::fflush(stdout);
+        auto t0 = std::chrono::steady_clock::now();
+        const double acc = ScoreNoisyTest(et, clean_fields, labels, sigma);
+        auto t1 = std::chrono::steady_clock::now();
+        accs.push_back(acc);
+        secs.push_back(std::chrono::duration<double>(t1 - t0).count());
+        if (sigma <= 0.0f)
+            clean_acc = acc;
+    }
+    PrintNoiseSweepTable(name, train_acc, collect_train_s, grid, accs, secs);
+    return clean_acc;
+}
+
 // =============================================================================
 
 int main(int argc, char** argv)
@@ -389,9 +444,10 @@ int main(int argc, char** argv)
             throw std::logic_error("embed capacity does not match N");
 
         const auto plan = emb.plan(kImgSide, kImgSide);
-        std::printf("etalon_mnist: pack=%s train=%zu test=%zu epochs=%d\n",
+        std::printf("etalon_mnist: pack=%s train=%zu test=%zu "
+                    "exciter_epochs=%d bypass_epochs=%d\n",
                     PackModeName(kPack), train.size(), test.size(),
-                    base.readout.epochs);
+                    kExciterEpochs, kBypassEpochs);
         if (kPack == PackMode::PadLowCenter)
         {
             std::printf(
@@ -429,33 +485,14 @@ int main(int argc, char** argv)
 
         const bool sweep = kTestNoiseSweep;
         bool check_floor = true;
+        std::vector<double> exciter_accs;
+        std::vector<double> exciter_secs;
         if (sweep)
         {
-            const auto& grid = noise_grid;
-            std::vector<double> accs;
-            std::vector<double> secs;
-            accs.reserve(grid.size());
-            secs.reserve(grid.size());
-            double clean_acc = -1.0;
-            for (float sigma : grid)
-            {
-                std::printf("%s: scoring %zu test fields at sigma=%.4g...\n",
-                            exciter.name, test_labels.size(),
-                            static_cast<double>(sigma));
-                std::fflush(stdout);
-                auto t0 = std::chrono::steady_clock::now();
-                const double acc = ScoreNoisyTest(
-                    et, test_fields, test_labels, sigma);
-                auto t1 = std::chrono::steady_clock::now();
-                const double s = std::chrono::duration<double>(t1 - t0).count();
-                accs.push_back(acc);
-                secs.push_back(s);
-                if (sigma <= 0.0f)
-                    clean_acc = acc;
-            }
-            PrintNoiseSweepTable(exciter.name, exciter.train_acc,
-                                 exciter.secs_collect_train,
-                                 grid, accs, secs);
+            const double clean_acc = RunNoiseSweep(
+                et, exciter.name, exciter.train_acc, exciter.secs_collect_train,
+                test_fields, test_labels, noise_grid,
+                exciter_accs, exciter_secs);
             if (clean_acc >= 0.0)
                 exciter.test_acc = clean_acc;
             else
@@ -476,20 +513,28 @@ int main(int argc, char** argv)
 
         if (kRunBypass)
         {
+            EtalonConfig bypass_cfg = base;
+            bypass_cfg.bypass_exciter = true;
+            bypass_cfg.readout.epochs = kBypassEpochs;
+            PathResult bypass;
+            Etalon bypass_et = TrainPath(
+                "etalon_mnist/bypass", bypass_cfg,
+                train_fields, train_labels, /*progress=*/false, bypass);
             if (sweep)
             {
-                std::printf("etalon_mnist: note: test-noise sweep skips bypass "
-                            "(kRunBypass is on; sweep is the exciter path)\n");
-                std::fflush(stdout);
+                std::vector<double> bypass_accs;
+                std::vector<double> bypass_secs;
+                const double clean_acc = RunNoiseSweep(
+                    bypass_et, bypass.name, bypass.train_acc,
+                    bypass.secs_collect_train,
+                    test_fields, test_labels, noise_grid,
+                    bypass_accs, bypass_secs);
+                if (clean_acc >= 0.0)
+                    bypass.test_acc = clean_acc;
+                PrintSweepCompare(noise_grid, exciter_accs, bypass_accs);
             }
             else
             {
-                EtalonConfig bypass_cfg = base;
-                bypass_cfg.bypass_exciter = true;
-                PathResult bypass;
-                Etalon bypass_et = TrainPath(
-                    "etalon_mnist/bypass", bypass_cfg,
-                    train_fields, train_labels, /*progress=*/false, bypass);
                 auto t0 = std::chrono::steady_clock::now();
                 bypass.test_acc = ScoreNoisyTest(
                     bypass_et, test_fields, test_labels, 0.0f);

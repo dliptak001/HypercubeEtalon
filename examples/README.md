@@ -14,8 +14,10 @@ consistency check: set `kRunBypass` in the demo `.cpp` when you want it.
 Train stays clean. That protocol lives only in the example
 (`kTestNoiseSweep` / `kTestNoiseStart` / `kTestNoiseEnd` /
 `kTestNoiseStep`). Off = one clean test. On = train once, then score
-`start, start+step, ...` while `<= end` and print a table. `start = 0`
-is a clean first row, not off. The shipped demo turns the sweep on at
+`start, start+step, ...` while `<= end` and print a table. With
+`kRunBypass` on, both the Exciter and skip-the-walk paths train once
+and share that grid (plus a side-by-side delta table). `start = 0` is
+a clean first row, not off. The shipped demo turns the sweep on at
 `0, 1, 0.1` (11 points).
 
 Build in **Release**, then run the binary you care about. Debug is slower
