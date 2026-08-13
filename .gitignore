@@ -59,6 +59,9 @@ compile_commands.json
 *.bak
 *.swp
 
+# Local build/run-box helpers (not product)
+scripts/
+
 # vcpkg
 vcpkg_installed/
 
