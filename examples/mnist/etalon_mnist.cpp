@@ -68,8 +68,8 @@ static const char* PackModeName(PackMode pack)
 
 // Path-specific readout length. Bypass sees the packed field and converges
 // sooner; the Exciter bank wants the longer schedule.
-static constexpr int kExciterEpochs = 100;
-static constexpr int kBypassEpochs = 40;
+static constexpr int kExciterEpochs = 100;//100;
+static constexpr int kBypassEpochs = 20;
 
 static EtalonConfig MakeBaseConfig()
 {
@@ -79,11 +79,7 @@ static EtalonConfig MakeBaseConfig()
     cfg.exciter.dim = 10;
     cfg.exciter.seed = 38715376369942979ull;
     cfg.exciter.halvings = 6;
-
-    // First-guess mixer. Too-small scales collapse the bank toward 0
-    // (chance-level readout). These keep the first star O(1):
-    // dim=10, |x|<=1 → typical first sum ~ dim * wt * in ≈ 1.
-    cfg.exciter.input_scaling = 0.2;
+    cfg.exciter.input_scaling = 0.25;
     cfg.exciter.weight_scaling = 0.2;
 
     cfg.readout.dim = 0;
@@ -93,9 +89,10 @@ static EtalonConfig MakeBaseConfig()
     cfg.readout.use_pooling = true;
     cfg.readout.conv_channels = 16;
     cfg.readout.channel_growth = 1;
-    cfg.readout.activation = ReadoutActivation::TANH;
+    cfg.readout.activation = ReadoutActivation::NONE;
+    cfg.readout.optimizer = ReadoutOptimizer::Adam;
     cfg.readout.epochs = kExciterEpochs;
-    cfg.readout.batch_size = 32;
+    cfg.readout.batch_size = 64;
     cfg.readout.lr_max = 0.002f;
     cfg.readout.lr_min_frac = 0.005;
     cfg.readout.num_threads = 0; // HCNN auto
@@ -114,7 +111,7 @@ static constexpr PackMode kPack = PackMode::PadLowCenter;
 
 // MNIST train is 60000, test 10000. A short demo is 1000 / 500.
 static constexpr int kTrainSamples = 60000;
-static constexpr int kTestSamples = 5000;
+static constexpr int kTestSamples = 10000;
 static constexpr float kPad = -1.0f;
 static constexpr int kImgSide = 28;
 static constexpr int kImgPixels = kImgSide * kImgSide;
@@ -122,7 +119,7 @@ static constexpr int kImgPixels = kImgSide * kImgSide;
 static constexpr double kMinExciterTestAcc = 0.50;
 
 // Occasional consistency check: pack → readout with no Exciter walk.
-static constexpr bool kRunBypass = true;
+static constexpr bool kRunBypass = false;
 
 static constexpr bool kTestNoiseSweep = true;
 static constexpr float kTestNoiseStart = 0.0f;

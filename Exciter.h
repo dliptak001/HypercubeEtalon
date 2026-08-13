@@ -27,7 +27,7 @@ struct ExciterConfig
     /// (dim-halvings)-face through r. Valid range **[0, dim)** so
     /// M = N >> halvings >= 2. Full star: off-face neighbors stay at
     /// the scaled input.
-    size_t halvings = 1;
+    size_t halvings = 2;
 };
 
 /// Hypercube field exciter: fixed neighbor weights, XOR-rotated F/B sweeps.

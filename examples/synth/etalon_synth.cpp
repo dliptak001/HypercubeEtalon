@@ -44,6 +44,7 @@ static EtalonConfig MakeBaseConfig()
 
     cfg.exciter.dim = 7; // N = 128 — cheap enough for a full A/B
     cfg.exciter.seed = 1;
+    cfg.exciter.halvings = 2;
     // First-guess scales: neighbor star should mix without instantly clipping.
     // dim=7, |x|<=1 → typical first sum ~ dim * wt * in ≈ 0.5.
     cfg.exciter.input_scaling = 0.30f;
