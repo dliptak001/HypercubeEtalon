@@ -73,3 +73,22 @@ in their own folders; they are different spectra.
 Checked: `Training/0`, `Training/9999`, `Validation/0`, `Validation/999`,
 and both `xaxis.txt` files are all length 2048. Training and validation
 `xaxis.txt` match (first ≈ 120.72, last ≈ 796.94).
+
+---
+
+## Error
+
+Score is **RMS** of predicted baseline vs `X.label.txt`. No curve fit.
+
+Per spectrum, over the 2048 bins:
+
+```text
+err[i]  = label[i] - predicted[i]
+RMSE    = sqrt( mean( err[i]^2 ) )
+```
+
+On a split (train prefix or validation prefix), take the mean of those
+per-spectrum MSEs, then sqrt — same as RMSE over every bin in the split.
+
+That is the number this example reports. Peaks and percent-of-peak error
+are out of scope.

@@ -78,11 +78,10 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
         SOURCES examples/mnist/etalon_mnist.cpp
         INCLUDES ${PROJECT_SOURCE_DIR}/examples/mnist)
 
-    # Shell only — no main yet. OBJECT target so CLion compiles the class.
-    add_library(etalon_raman OBJECT
-        examples/RamanBaselineExtraction/BaselineExtractor.cpp)
-    target_link_libraries(etalon_raman PRIVATE HypercubeEtalonCore etalon_compile_flags)
-    target_include_directories(etalon_raman PRIVATE
-        ${PROJECT_SOURCE_DIR}/examples/common
-        ${PROJECT_SOURCE_DIR}/examples/RamanBaselineExtraction)
+    etalon_add_exe(etalon_raman
+        SOURCES
+            examples/RamanBaselineExtraction/etalon_raman.cpp
+            examples/RamanBaselineExtraction/BaselineExtractor.cpp
+            examples/RamanBaselineExtraction/RamanDataset.cpp
+        INCLUDES ${PROJECT_SOURCE_DIR}/examples/RamanBaselineExtraction)
 endif()

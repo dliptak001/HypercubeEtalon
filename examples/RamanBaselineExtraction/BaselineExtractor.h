@@ -1,17 +1,27 @@
 #pragma once
 
 #include "Etalon.h"
+#include "RamanDataset.h"
 
-/// Raman baseline extraction: dim-11 field in, length-2048 field out.
-///
-/// Input spectrum and readout target are the same length (`N = 2^11 = 2048`).
-/// Task is regression. Other Etalon knobs stay at product defaults until set.
+#include <span>
+
+constexpr size_t kDim = 11;
+constexpr size_t kN = size_t{1} << kDim;
+
+inline EtalonConfig MakeConfig()
+{
+    EtalonConfig cfg;
+    cfg.exciter.dim = kDim;
+    cfg.readout.dim = 0;
+    cfg.readout.num_outputs = static_cast<int>(kN);
+    cfg.readout.task = ReadoutTask::Regression;
+    cfg.collect_threads = 1;
+    return cfg;
+}
+
 class BaselineExtractor
 {
 public:
-    static constexpr size_t kDim = 11;
-    static constexpr size_t kN = size_t{1} << kDim; // 2048
-
     BaselineExtractor();
     ~BaselineExtractor() = default;
 
@@ -27,6 +37,10 @@ public:
     [[nodiscard]] const EtalonConfig& config() const { return etalon_.config(); }
     [[nodiscard]] Etalon& etalon() { return etalon_; }
     [[nodiscard]] const Etalon& etalon() const { return etalon_; }
+
+    void Collect(const RamanSplit& split);
+    void Train();
+    void Predict(std::span<const float> spectrum, std::span<float> baseline);
 
 private:
     Etalon etalon_;
