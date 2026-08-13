@@ -113,3 +113,26 @@ per-spectrum MSEs, then sqrt — same as RMSE over every bin in the split.
 
 That is the number this example reports. Peaks and percent-of-peak error
 are out of scope.
+
+---
+
+## Exciter vs bypass (20 epochs)
+
+One Release `etalon_raman` pair after the `[-1, 1]` map. Same 1000 / 100
+prefix, dim 11, `halvings = 7` (`M = 16`), 20 readout epochs, activation
+NONE. The only change is `kRunBypass`:
+
+```text
+bypass=false  — normalized field through the Exciter, then the head
+bypass=true   — normalized field straight to the head
+```
+
+| Path | train RMSE | val RMSE |
+|------|-----------:|---------:|
+| Exciter | 42.447 | 42.898 |
+| Bypass | 106.832 | 101.552 |
+
+The walk cuts error by about **2.4×**. Train matches val on both arms,
+so this is not a memorized 1000. The C# 1-D CNN typically needs about
+100 epochs to get under RMSE 3 on this score; these numbers are the
+20-epoch cut, not that floor.

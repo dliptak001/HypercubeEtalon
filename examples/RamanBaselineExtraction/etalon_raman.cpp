@@ -2,13 +2,14 @@
 #include "RamanDataset.h"
 #include "RamanScore.h"
 
+#include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <stdexcept>
 
 static constexpr int kTrainSamples = 1000;
 static constexpr int kTestSamples = 100;
-static constexpr bool kRunBypass = false;
+static constexpr bool kRunBypass = true;
 
 static constexpr const char* kDataRoot = "C:/MLPlayground/Datasets/data";
 
@@ -71,9 +72,13 @@ int main()
         std::printf("etalon_raman: collected\n");
         std::fflush(stdout);
 
+        const auto t0 = std::chrono::steady_clock::now();
         ex.Train();
+        const auto t1 = std::chrono::steady_clock::now();
         FinishEpochTicks();
-        std::printf("etalon_raman: trained\n");
+        const double train_secs =
+            std::chrono::duration<double>(t1 - t0).count();
+        std::printf("etalon_raman: trained time=%.2fs\n", train_secs);
         std::fflush(stdout);
 
         const double train_rmse = RamanRmse(ex, train);
