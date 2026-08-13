@@ -33,6 +33,19 @@ struct EtalonConfig
 
     /// Seed for collect-only noise (not the Exciter weight seed).
     uint64_t noise_seed = 1;
+
+    /// Parallel workers for bulk @ref Etalon::CollectBatch / @ref Etalon::Accuracy /
+    /// @ref Etalon::R2 (each extra worker owns an Exciter with the same frozen
+    /// weights). 0 = auto (desktop-friendly: leave 1–2 cores free for the OS/UI),
+    /// 1 = serial, K = K workers. Single-sample @ref Etalon::Collect / @ref Etalon::Run
+    /// is always serial on the primary.
+    ///
+    /// Auto policy: max(1, hw − 1), or max(1, hw − 2) when hw ≥ 8.
+    /// Worker 0 reuses the primary Exciter (no extra weight copy). Workers
+    /// 1..K−1 are full clones. A persistent thread pool is kept for the Etalon
+    /// lifetime (grows to the high-water mark; does not shrink) so bulk maps
+    /// do not re-spawn OS threads each call.
+    size_t collect_threads = 0;
 };
 
 /// @brief HypercubeEtalon product façade: length-N field → Exciter bank → HCNN.
@@ -54,16 +67,18 @@ struct EtalonConfig
 /// so every public path copies into internal scratch first.
 ///
 /// One instance is not thread-safe for concurrent public calls.
+/// Parallelism is internal to bulk @ref CollectBatch / @ref Accuracy / @ref R2.
 /// Moved-from objects may only be assigned to or destroyed.
 class Etalon
 {
 public:
     explicit Etalon(const EtalonConfig& cfg);
+    ~Etalon();
 
     Etalon(const Etalon&) = delete;
     Etalon& operator=(const Etalon&) = delete;
-    Etalon(Etalon&&) noexcept = default;
-    Etalon& operator=(Etalon&&) noexcept = default;
+    Etalon(Etalon&&) noexcept;
+    Etalon& operator=(Etalon&&) noexcept;
 
     // ----- Sizes / pieces -----
 
@@ -71,6 +86,9 @@ public:
     [[nodiscard]] size_t N() const { return n_; }
     [[nodiscard]] size_t NumCollected() const { return num_collected_; }
     [[nodiscard]] size_t NumOutputs() const { return readout_->NumOutputs(); }
+    /// Configured collect-thread preference (0 = auto). Actual workers used on
+    /// a given bulk map are min(resolved, sample_count).
+    [[nodiscard]] size_t CollectThreads() const { return cfg_.collect_threads; }
 
     /// Resolved product knobs (readout.dim filled in).
     [[nodiscard]] const EtalonConfig& config() const { return cfg_; }
@@ -94,6 +112,7 @@ public:
     // ----- Collect / train -----
 
     /// Drop all samples collected for batch training.
+    /// Does not free collect-worker Exciters or the collect thread pool.
     void ClearCollected();
 
     /// Map @p x (with optional collect-only noise), append features + class label.
@@ -105,15 +124,17 @@ public:
     void Collect(std::span<const float> x, std::span<const float> target);
 
     /// Bulk collect (classification). @p fields_flat is sample-major, length
-    /// count * N; @p labels length count. Serial. Validates all labels before
+    /// count * N; @p labels length count. Independent maps fan across
+    /// @ref EtalonConfig::collect_threads workers. Validates all labels before
     /// mapping. On success the last row is left in @ref LastFeatures. A throw
     /// leaves the collected set unchanged.
     void CollectBatch(std::span<const float> fields_flat,
                       std::span<const int> labels);
 
     /// Bulk collect (regression). @p targets_flat is sample-major, length
-    /// count * NumOutputs(). Serial. On success the last row is left in
-    /// @ref LastFeatures. A throw leaves the collected set unchanged.
+    /// count * NumOutputs(). Same worker fan-out as the classification
+    /// overload. On success the last row is left in @ref LastFeatures. A throw
+    /// leaves the collected set unchanged.
     void CollectBatch(std::span<const float> fields_flat,
                       std::span<const float> targets_flat);
 
@@ -150,14 +171,33 @@ public:
                             std::span<const float> targets_flat);
 
 private:
+    /// One map runner. Worker 0 aliases the primary Exciter (no second
+    /// weight copy). Workers 1.. use owned clones.
+    struct CollectWorker
+    {
+        Exciter* ex = nullptr;            // non-owning view
+        std::unique_ptr<Exciter> owned;   // null for primary alias
+        std::vector<float> field;         // length N; ExciteCube mutates this
+        std::vector<float> noise;         // length N if train_input_noise_sigma > 0
+    };
+
+    /// Persistent fork-join pool (see Etalon.cpp).
+    struct CollectPool;
+
     void MapInto(std::span<const float> x, float* dest);
     void MapBatchInto(std::span<const float> fields_flat,
                       std::vector<float>& out_features);
     void MapCollectedOne(std::span<const float> x);
-    void MapCollectedBatch(std::span<const float> fields_flat,
-                           std::vector<float>& mapped);
+    void MapFeaturesParallel(const float* fields_flat, size_t count,
+                             float* dest, bool apply_collect_noise);
     void RequireClassification() const;
     void RequireRegression() const;
+
+    [[nodiscard]] size_t ResolveCollectThreads(size_t count) const;
+    void EnsureCollectWorkers(size_t n);
+    void EnsureCollectPool(size_t nthreads);
+    void RebindPrimaryWorker();
+    void PublishLastRow(const float* rows, size_t count);
 
     EtalonConfig cfg_{};
     size_t dim_ = 0;
@@ -166,12 +206,15 @@ private:
     std::unique_ptr<Exciter> exciter_;
     std::unique_ptr<Readout> readout_;
 
-    std::vector<float> field_scratch_;   // length N; ExciteCube mutates this
+    std::vector<float> field_scratch_;   // length N; serial ExciteCube scratch
     std::vector<float> last_features_;   // length N
-    std::vector<float> noise_field_;     // collect-only when σ > 0
+    std::vector<float> noise_field_;     // serial Collect when σ > 0
 
     std::vector<float> collected_features_; // num_collected_ * N
     std::vector<int> collected_labels_;
     std::vector<float> collected_targets_;
     size_t num_collected_ = 0;
+
+    std::vector<CollectWorker> collect_workers_;
+    std::unique_ptr<CollectPool> collect_pool_;
 };

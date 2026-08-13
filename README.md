@@ -110,7 +110,7 @@ x[N]  →  [optional collect-only noise]  →  Exciter  →  y[N]  →  Readout
 | Call | What it does |
 |------|----------------|
 | `Run` | Map one field. No noise. Updates `LastFeatures`. |
-| `Collect` / `CollectBatch` | Map (optional noise) and keep the sample for training. |
+| `Collect` / `CollectBatch` | Map (optional noise) and keep the sample. `CollectBatch` fans independent maps across `collect_threads` workers (0 = auto). |
 | `TrainOnCollected` | Fit the head on what you collected. |
 | `Predict` / `PredictClass` | Fresh map, then the head. No collect noise. |
 | `AccuracyOnCollected` / `R2OnCollected` | Score the **training** buffer. |
@@ -156,8 +156,9 @@ holdout rules. New work belongs on the Exciter or on `Etalon`. A
 different train loop should call HypercubeCNN itself.
 
 This is not HypercubeWTF. No orbit length `T`, no delay packing, no
-episode initial condition, no parallel collect pool. One map is one bank
-of bounces. Features are always length N.
+episode initial condition. One map is one bank of bounces. Bulk collect
+fans independent maps across workers (`collect_threads`). Features are
+always length N.
 
 ## Examples
 

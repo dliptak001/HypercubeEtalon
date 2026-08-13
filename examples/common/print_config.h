@@ -55,10 +55,14 @@ inline void PrintReadoutConfig(const Readout& ro)
 inline void PrintEtalonHeader(const char* demo_name, const Etalon& et)
 {
     const EtalonConfig& cfg = et.config();
-    std::printf("%s: N=%zu dim=%zu bypass_exciter=%s "
+    std::printf("%s: N=%zu dim=%zu bypass_exciter=%s collect_threads=%zu%s "
                 "train_input_noise_sigma=%.4g noise_seed=%llu\n",
                 demo_name, et.N(), et.Dim(),
                 cfg.bypass_exciter ? "true" : "false",
+                cfg.collect_threads,
+                cfg.collect_threads == 0
+                    ? " (auto: leave 1-2 cores free)"
+                    : "",
                 static_cast<double>(cfg.train_input_noise_sigma),
                 static_cast<unsigned long long>(cfg.noise_seed));
     PrintExciterConfig(cfg.exciter);

@@ -1,10 +1,18 @@
 #include "Etalon.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <exception>
+#include <functional>
+#include <mutex>
 #include <random>
 #include <stdexcept>
+#include <thread>
+#include <utility>
 
 namespace {
 
@@ -33,6 +41,157 @@ void add_gaussian_noise(const float* x, float* y, size_t n, float sigma,
 }
 
 } // namespace
+
+// ---------------------------------------------------------------------------
+// Persistent collect thread pool
+//
+// Background workers live for the Etalon lifetime. Each ForEach is fork-join:
+// the calling thread is tid 0; workers 1..nthreads-1 take the other chunks.
+// Extra parked workers (pool larger than this job) wait out the generation
+// without touching active_.
+//
+// std::thread + mutex/cv only. No OpenMP.
+// Not re-entrant: do not call ForEach from a callback that already runs
+// inside ForEach on this pool.
+// ---------------------------------------------------------------------------
+
+struct Etalon::CollectPool
+{
+    explicit CollectPool(size_t background_workers)
+    {
+        workers_.reserve(background_workers);
+        for (size_t i = 0; i < background_workers; ++i)
+            workers_.emplace_back([this, i] { WorkerLoop(i + 1); });
+    }
+
+    ~CollectPool()
+    {
+        {
+            std::lock_guard lock(mutex_);
+            stop_ = true;
+        }
+        cv_work_.notify_all();
+        for (auto& w : workers_)
+            w.join();
+    }
+
+    CollectPool(const CollectPool&) = delete;
+    CollectPool& operator=(const CollectPool&) = delete;
+
+    [[nodiscard]] size_t NumThreads() const { return workers_.size() + 1; }
+
+    /// @p func(tid, begin, end) over [0, count). Blocks until all done.
+    template <typename F>
+    void ForEach(size_t count, size_t nthreads, F&& func)
+    {
+        if (count == 0)
+            return;
+
+        nthreads = std::max<size_t>(1, std::min({nthreads, count, NumThreads()}));
+        if (nthreads == 1)
+        {
+            func(size_t{0}, size_t{0}, count);
+            return;
+        }
+
+        const size_t chunk = (count + nthreads - 1) / nthreads;
+        const int bg = static_cast<int>(nthreads - 1);
+
+        {
+            std::lock_guard lock(mutex_);
+            exception_ = nullptr;
+            job_nthreads_ = nthreads;
+            active_.store(bg);
+            for_func_ = [&func, chunk, count, nthreads](size_t tid) {
+                if (tid >= nthreads)
+                    return;
+                const size_t b = tid * chunk;
+                if (b >= count)
+                    return;
+                func(tid, b, std::min(b + chunk, count));
+            };
+            ++generation_;
+        }
+        cv_work_.notify_all();
+
+        std::exception_ptr caller_ex;
+        try
+        {
+            func(size_t{0}, size_t{0}, std::min(chunk, count));
+        }
+        catch (...)
+        {
+            caller_ex = std::current_exception();
+        }
+
+        {
+            std::unique_lock lock(mutex_);
+            cv_done_.wait(lock, [this] { return active_.load() == 0; });
+            for_func_ = nullptr;
+            if (caller_ex)
+            {
+                exception_ = nullptr;
+                std::rethrow_exception(caller_ex);
+            }
+            if (exception_)
+                std::rethrow_exception(exception_);
+        }
+    }
+
+private:
+    void WorkerLoop(size_t tid)
+    {
+        size_t local_gen = 0;
+        std::function<void(size_t)> fn;
+        size_t job_nt = 0;
+        while (true)
+        {
+            {
+                std::unique_lock lock(mutex_);
+                cv_work_.wait(lock, [&] { return stop_ || generation_ > local_gen; });
+                if (stop_)
+                    return;
+                local_gen = generation_;
+                fn = for_func_;
+                job_nt = job_nthreads_;
+            }
+
+            // Pool may be larger than this job; only tid in [1, job_nt) work.
+            if (tid < job_nt && fn)
+            {
+                try
+                {
+                    fn(tid);
+                }
+                catch (...)
+                {
+                    std::lock_guard elock(mutex_);
+                    if (!exception_)
+                        exception_ = std::current_exception();
+                }
+
+                if (active_.fetch_sub(1) == 1)
+                {
+                    // Synchronize with ForEach's wait (lost-wakeup guard).
+                    { std::lock_guard lock(mutex_); }
+                    cv_done_.notify_one();
+                }
+            }
+        }
+    }
+
+    std::vector<std::thread> workers_;
+    std::mutex mutex_;
+    std::condition_variable cv_work_;
+    std::condition_variable cv_done_;
+
+    std::function<void(size_t)> for_func_;
+    std::exception_ptr exception_;
+    size_t generation_ = 0;
+    size_t job_nthreads_ = 0;
+    bool stop_ = false;
+    alignas(64) std::atomic<int> active_{0};
+};
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -74,6 +233,196 @@ Etalon::Etalon(const EtalonConfig& cfg)
     field_scratch_.assign(n_, 0.0f);
     last_features_.clear();
     ClearCollected();
+
+    CollectWorker primary;
+    primary.ex = exciter_.get();
+    primary.field.assign(n_, 0.0f);
+    if (cfg_.train_input_noise_sigma > 0.0f)
+        primary.noise.assign(n_, 0.0f);
+    collect_workers_.push_back(std::move(primary));
+}
+
+Etalon::~Etalon() = default;
+
+void Etalon::RebindPrimaryWorker()
+{
+    if (collect_workers_.empty())
+        return;
+    collect_workers_[0].ex = exciter_.get();
+    collect_workers_[0].owned.reset();
+}
+
+Etalon::Etalon(Etalon&& o) noexcept
+    : cfg_(std::move(o.cfg_)),
+      dim_(o.dim_),
+      n_(o.n_),
+      exciter_(std::move(o.exciter_)),
+      readout_(std::move(o.readout_)),
+      field_scratch_(std::move(o.field_scratch_)),
+      last_features_(std::move(o.last_features_)),
+      noise_field_(std::move(o.noise_field_)),
+      collected_features_(std::move(o.collected_features_)),
+      collected_labels_(std::move(o.collected_labels_)),
+      collected_targets_(std::move(o.collected_targets_)),
+      num_collected_(o.num_collected_),
+      collect_workers_(std::move(o.collect_workers_)),
+      collect_pool_(std::move(o.collect_pool_))
+{
+    o.dim_ = 0;
+    o.n_ = 0;
+    o.num_collected_ = 0;
+    RebindPrimaryWorker();
+}
+
+Etalon& Etalon::operator=(Etalon&& o) noexcept
+{
+    if (this == &o)
+        return *this;
+
+    collect_pool_.reset();
+    collect_workers_.clear();
+
+    cfg_ = std::move(o.cfg_);
+    dim_ = o.dim_;
+    n_ = o.n_;
+    exciter_ = std::move(o.exciter_);
+    readout_ = std::move(o.readout_);
+    field_scratch_ = std::move(o.field_scratch_);
+    last_features_ = std::move(o.last_features_);
+    noise_field_ = std::move(o.noise_field_);
+    collected_features_ = std::move(o.collected_features_);
+    collected_labels_ = std::move(o.collected_labels_);
+    collected_targets_ = std::move(o.collected_targets_);
+    num_collected_ = o.num_collected_;
+    collect_workers_ = std::move(o.collect_workers_);
+    collect_pool_ = std::move(o.collect_pool_);
+
+    o.dim_ = 0;
+    o.n_ = 0;
+    o.num_collected_ = 0;
+    RebindPrimaryWorker();
+    return *this;
+}
+
+// ---------------------------------------------------------------------------
+// Collect workers / pool
+// ---------------------------------------------------------------------------
+
+size_t Etalon::ResolveCollectThreads(size_t count) const
+{
+    if (count == 0)
+        return 1;
+    size_t n = cfg_.collect_threads;
+    if (n == 0)
+    {
+        // Leave headroom for the OS / UI so a long collect does not peg
+        // every logical core. Explicit collect_threads = hw still allows
+        // a full burn when desired.
+        const unsigned hw = std::thread::hardware_concurrency();
+        if (hw == 0)
+        {
+            n = 1;
+        }
+        else
+        {
+            const unsigned reserve = (hw >= 8u) ? 2u : 1u;
+            n = (hw > reserve) ? static_cast<size_t>(hw - reserve) : 1u;
+        }
+    }
+    if (n < 1)
+        n = 1;
+    return std::min(n, count);
+}
+
+void Etalon::EnsureCollectWorkers(size_t n)
+{
+    if (n <= collect_workers_.size())
+        return;
+
+    collect_workers_.reserve(n);
+    while (collect_workers_.size() < n)
+    {
+        CollectWorker w;
+        if (!cfg_.bypass_exciter)
+        {
+            w.owned = Exciter::Create(cfg_.exciter);
+            w.ex = w.owned.get();
+        }
+        w.field.assign(n_, 0.0f);
+        if (cfg_.train_input_noise_sigma > 0.0f)
+            w.noise.assign(n_, 0.0f);
+        collect_workers_.push_back(std::move(w));
+    }
+}
+
+void Etalon::EnsureCollectPool(size_t nthreads)
+{
+    if (nthreads <= 1)
+        return;
+    const size_t want_bg = nthreads - 1;
+    if (!collect_pool_ || collect_pool_->NumThreads() < nthreads)
+        collect_pool_ = std::make_unique<CollectPool>(want_bg);
+}
+
+void Etalon::PublishLastRow(const float* rows, size_t count)
+{
+    if (count == 0 || rows == nullptr)
+        return;
+    const float* last = rows + (count - 1) * n_;
+    last_features_.assign(last, last + n_);
+}
+
+void Etalon::MapFeaturesParallel(const float* fields_flat, size_t count,
+                                 float* dest, bool apply_collect_noise)
+{
+    if (count == 0)
+        return;
+    if (fields_flat == nullptr || dest == nullptr)
+        throw std::logic_error("Etalon::MapFeaturesParallel: null buffer");
+
+    const size_t nw = ResolveCollectThreads(count);
+    EnsureCollectWorkers(nw);
+    EnsureCollectPool(nw);
+
+    const bool bypass = cfg_.bypass_exciter;
+    const float sigma = cfg_.train_input_noise_sigma;
+    const bool do_noise = apply_collect_noise && sigma > 0.0f;
+    const size_t noise_base = num_collected_;
+
+    auto run_range = [&](size_t tid, size_t begin, size_t end) {
+        CollectWorker& w = collect_workers_[tid];
+        for (size_t i = begin; i < end; ++i)
+        {
+            const float* x = fields_flat + i * n_;
+            if (do_noise)
+            {
+                add_gaussian_noise(
+                    x, w.noise.data(), n_, sigma,
+                    mix64(cfg_.noise_seed
+                          ^ (0x4E4F495300000001ULL + noise_base + i)));
+                x = w.noise.data();
+            }
+
+            float* out = dest + i * n_;
+            if (bypass)
+            {
+                std::memcpy(out, x, n_ * sizeof(float));
+            }
+            else
+            {
+                if (w.ex == nullptr)
+                    throw std::logic_error("Etalon::MapFeaturesParallel: null Exciter");
+                std::memcpy(w.field.data(), x, n_ * sizeof(float));
+                const float* y = w.ex->ExciteCube(w.field.data());
+                std::memcpy(out, y, n_ * sizeof(float));
+            }
+        }
+    };
+
+    if (nw <= 1 || !collect_pool_)
+        run_range(0, 0, count);
+    else
+        collect_pool_->ForEach(count, nw, run_range);
 }
 
 // ---------------------------------------------------------------------------
@@ -120,13 +469,9 @@ void Etalon::MapBatchInto(std::span<const float> fields_flat,
     if (count == 0)
         return;
 
-    for (size_t i = 0; i < count; ++i)
-    {
-        MapInto(fields_flat.subspan(i * n_, n_),
-                out_features.data() + i * n_);
-    }
-    last_features_.assign(out_features.data() + (count - 1) * n_,
-                          out_features.data() + count * n_);
+    MapFeaturesParallel(fields_flat.data(), count, out_features.data(),
+                        /*apply_collect_noise=*/false);
+    PublishLastRow(out_features.data(), count);
 }
 
 // ---------------------------------------------------------------------------
@@ -175,32 +520,6 @@ void Etalon::MapCollectedOne(std::span<const float> x)
     {
         MapInto(x, last_features_.data());
     }
-}
-
-void Etalon::MapCollectedBatch(std::span<const float> fields_flat,
-                               std::vector<float>& mapped)
-{
-    if (cfg_.train_input_noise_sigma <= 0.0f)
-    {
-        MapBatchInto(fields_flat, mapped);
-        return;
-    }
-
-    const size_t count = fields_flat.size() / n_;
-    std::vector<float> noisy(fields_flat.size());
-    if (noise_field_.size() != n_)
-        noise_field_.assign(n_, 0.0f);
-    for (size_t i = 0; i < count; ++i)
-    {
-        add_gaussian_noise(
-            fields_flat.data() + i * n_, noise_field_.data(), n_,
-            cfg_.train_input_noise_sigma,
-            mix64(cfg_.noise_seed
-                  ^ (0x4E4F495300000001ULL + num_collected_ + i)));
-        std::memcpy(noisy.data() + i * n_, noise_field_.data(),
-                    n_ * sizeof(float));
-    }
-    MapBatchInto(noisy, mapped);
 }
 
 void Etalon::Collect(std::span<const float> x, int class_label)
@@ -285,20 +604,18 @@ void Etalon::CollectBatch(std::span<const float> fields_flat,
     if (count == 0)
         return;
 
-    std::vector<float> mapped;
-    MapCollectedBatch(fields_flat, mapped);
-
+    const size_t base = num_collected_;
     const size_t old_feat = collected_features_.size();
     const size_t old_lab = collected_labels_.size();
     try
     {
-        collected_features_.reserve(old_feat + mapped.size());
-        collected_labels_.reserve(old_lab + count);
-        collected_features_.insert(collected_features_.end(), mapped.begin(),
-                                   mapped.end());
-        collected_labels_.insert(collected_labels_.end(), labels.begin(),
-                                 labels.end());
-        num_collected_ += count;
+        collected_labels_.resize(base + count);
+        std::memcpy(collected_labels_.data() + base, labels.data(),
+                    count * sizeof(int));
+        collected_features_.resize((base + count) * n_);
+        MapFeaturesParallel(fields_flat.data(), count,
+                            collected_features_.data() + base * n_,
+                            /*apply_collect_noise=*/true);
     }
     catch (...)
     {
@@ -306,6 +623,8 @@ void Etalon::CollectBatch(std::span<const float> fields_flat,
         collected_labels_.resize(old_lab);
         throw;
     }
+    num_collected_ = base + count;
+    PublishLastRow(collected_features_.data() + base * n_, count);
 }
 
 void Etalon::CollectBatch(std::span<const float> fields_flat,
@@ -328,20 +647,18 @@ void Etalon::CollectBatch(std::span<const float> fields_flat,
     if (count == 0)
         return;
 
-    std::vector<float> mapped;
-    MapCollectedBatch(fields_flat, mapped);
-
+    const size_t base = num_collected_;
     const size_t old_feat = collected_features_.size();
     const size_t old_tgt = collected_targets_.size();
     try
     {
-        collected_features_.reserve(old_feat + mapped.size());
-        collected_targets_.reserve(old_tgt + targets_flat.size());
-        collected_features_.insert(collected_features_.end(), mapped.begin(),
-                                   mapped.end());
-        collected_targets_.insert(collected_targets_.end(),
-                                  targets_flat.begin(), targets_flat.end());
-        num_collected_ += count;
+        collected_targets_.resize((base + count) * no);
+        std::memcpy(collected_targets_.data() + base * no, targets_flat.data(),
+                    count * no * sizeof(float));
+        collected_features_.resize((base + count) * n_);
+        MapFeaturesParallel(fields_flat.data(), count,
+                            collected_features_.data() + base * n_,
+                            /*apply_collect_noise=*/true);
     }
     catch (...)
     {
@@ -349,6 +666,8 @@ void Etalon::CollectBatch(std::span<const float> fields_flat,
         collected_targets_.resize(old_tgt);
         throw;
     }
+    num_collected_ = base + count;
+    PublishLastRow(collected_features_.data() + base * n_, count);
 }
 
 void Etalon::TrainOnCollected()

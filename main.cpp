@@ -386,6 +386,28 @@ int main()
                 return EXIT_FAILURE;
             }
 
+            // LastFeatures is the last mapped row (no collect noise here).
+            {
+                Etalon chk(MakeCfg());
+                auto last = MakeField(kN, labels.back(),
+                                      static_cast<int>(kCount - 1));
+                chk.Run(last);
+                if (et.LastFeatures().size() != kN)
+                {
+                    std::cerr << "FAIL: CollectBatch LastFeatures size\n";
+                    return EXIT_FAILURE;
+                }
+                for (size_t i = 0; i < kN; ++i)
+                {
+                    if (std::fabs(et.LastFeatures()[i] - chk.LastFeatures()[i])
+                        > 1e-6f)
+                    {
+                        std::cerr << "FAIL: CollectBatch LastFeatures\n";
+                        return EXIT_FAILURE;
+                    }
+                }
+            }
+
             // Bad label after a prefix must not keep a partial batch.
             std::vector<int> bad = labels;
             bad.back() = 99;
@@ -406,15 +428,69 @@ int main()
             }
         }
 
+        // ----- 4b) Parallel CollectBatch vs serial: same train result -----
+        {
+            EtalonConfig serial_cfg = MakeCfg();
+            serial_cfg.collect_threads = 1;
+            EtalonConfig parallel_cfg = MakeCfg();
+            parallel_cfg.collect_threads = 4;
+
+            constexpr size_t kCount = 16;
+            std::vector<float> flat(kCount * kN);
+            std::vector<int> labels(kCount);
+            for (size_t i = 0; i < kCount; ++i)
+            {
+                const int lab = static_cast<int>(i % 2);
+                labels[i] = lab;
+                auto f = MakeField(kN, lab, static_cast<int>(i));
+                std::copy(f.begin(), f.end(),
+                          flat.begin() + static_cast<std::ptrdiff_t>(i * kN));
+            }
+
+            Etalon serial(serial_cfg);
+            Etalon parallel(parallel_cfg);
+            serial.CollectBatch(flat, labels);
+            parallel.CollectBatch(flat, labels);
+            if (serial.NumCollected() != kCount
+                || parallel.NumCollected() != kCount)
+            {
+                std::cerr << "FAIL: parallel CollectBatch count\n";
+                return EXIT_FAILURE;
+            }
+
+            serial.TrainOnCollected();
+            parallel.TrainOnCollected();
+            const double acc_s = serial.AccuracyOnCollected();
+            const double acc_p = parallel.AccuracyOnCollected();
+            if (std::fabs(acc_s - acc_p) > 1e-5)
+            {
+                std::cerr << "FAIL: serial vs parallel CollectBatch acc "
+                          << acc_s << " vs " << acc_p << '\n';
+                return EXIT_FAILURE;
+            }
+        }
+
         // ----- 5) Move -----
         {
-            Etalon a(MakeCfg());
-            auto x = MakeField(kN, 0, 1);
-            a.Run(x);
+            EtalonConfig cfg = MakeCfg();
+            cfg.collect_threads = 4;
+            Etalon a(cfg);
+            constexpr size_t kCount = 8;
+            std::vector<float> flat(kCount * kN);
+            std::vector<int> labels(kCount);
+            for (size_t i = 0; i < kCount; ++i)
+            {
+                labels[i] = static_cast<int>(i % 2);
+                auto f = MakeField(kN, labels[i], static_cast<int>(i));
+                std::copy(f.begin(), f.end(),
+                          flat.begin() + static_cast<std::ptrdiff_t>(i * kN));
+            }
+            a.CollectBatch(flat, labels);
             std::vector<float> feat(a.LastFeatures().begin(),
                                    a.LastFeatures().end());
             Etalon b(std::move(a));
-            if (b.N() != kN || b.LastFeatures().size() != kN)
+            if (b.N() != kN || b.LastFeatures().size() != kN
+                || b.NumCollected() != kCount)
             {
                 std::cerr << "FAIL: move sizes\n";
                 return EXIT_FAILURE;
