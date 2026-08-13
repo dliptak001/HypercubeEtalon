@@ -1,9 +1,10 @@
 #pragma once
 
 #include "Etalon.h"
-#include "RamanDataset.h"
 
 #include <span>
+
+struct RamanSplit;
 
 constexpr size_t kDim = 11;
 constexpr size_t kN = size_t{1} << kDim;
@@ -23,6 +24,7 @@ class BaselineExtractor
 {
 public:
     BaselineExtractor();
+    explicit BaselineExtractor(const EtalonConfig& cfg);
     ~BaselineExtractor() = default;
 
     BaselineExtractor(const BaselineExtractor&) = delete;

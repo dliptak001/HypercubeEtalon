@@ -11,6 +11,8 @@ inline double RamanRmse(BaselineExtractor& ex, const RamanSplit& split)
 {
     if (split.count == 0)
         throw std::invalid_argument("RamanRmse: empty split");
+    if (ex.N() != kN)
+        throw std::invalid_argument("RamanRmse: extractor N must equal kN");
 
     std::vector<float> pred(ex.N());
     double sum_mse = 0.0;
@@ -18,6 +20,8 @@ inline double RamanRmse(BaselineExtractor& ex, const RamanSplit& split)
     {
         ex.Predict(split.Spectrum(i), pred);
         const auto label = split.Baseline(i);
+        if (label.size() != pred.size())
+            throw std::invalid_argument("RamanRmse: label size mismatch");
         double acc = 0.0;
         for (size_t j = 0; j < pred.size(); ++j)
         {

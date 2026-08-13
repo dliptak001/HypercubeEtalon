@@ -1,14 +1,26 @@
 #include "BaselineExtractor.h"
+#include "RamanDataset.h"
 
 #include <stdexcept>
 
 BaselineExtractor::BaselineExtractor()
-    : etalon_(MakeConfig())
+    : BaselineExtractor(MakeConfig())
+{
+}
+
+BaselineExtractor::BaselineExtractor(const EtalonConfig& cfg)
+    : etalon_(cfg)
 {
 }
 
 void BaselineExtractor::Collect(const RamanSplit& split)
 {
+    if (split.spectra.size() != split.count * kN
+        || split.baselines.size() != split.count * kN)
+    {
+        throw std::invalid_argument(
+            "BaselineExtractor::Collect: count does not match buffer size");
+    }
     etalon_.CollectBatch(split.spectra, split.baselines);
 }
 

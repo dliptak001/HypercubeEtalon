@@ -8,6 +8,7 @@
 
 static constexpr int kTrainSamples = 100;
 static constexpr int kTestSamples = 50;
+static constexpr bool kRunBypass = false;
 
 static constexpr const char* kDataRoot = "C:/MLPlayground/Datasets/data";
 
@@ -31,19 +32,25 @@ int main()
         if (train.count == 0)
             throw std::runtime_error("empty training split");
 
-        BaselineExtractor ex;
-        if (ex.N() != kRamanBins)
-        {
-            throw std::logic_error(
-                "extractor N does not match dataset bin count");
-        }
+        EtalonConfig cfg = MakeConfig();
+        cfg.bypass_exciter = kRunBypass;
 
-        std::printf("etalon_raman: train=%zu val=%zu N=%zu\n",
-                    train.count, test.count, ex.N());
+        BaselineExtractor ex(cfg);
+        if (ex.N() != kN)
+            throw std::logic_error("extractor N must equal kN");
+
+        std::printf("etalon_raman: train=%zu val=%zu N=%zu bypass=%s\n",
+                    train.count, test.count, ex.N(),
+                    kRunBypass ? "true" : "false");
         std::fflush(stdout);
 
         ex.Collect(train);
+        std::printf("etalon_raman: collected\n");
+        std::fflush(stdout);
+
         ex.Train();
+        std::printf("etalon_raman: trained\n");
+        std::fflush(stdout);
 
         const double train_rmse = RamanRmse(ex, train);
         const double val_rmse = RamanRmse(ex, test);

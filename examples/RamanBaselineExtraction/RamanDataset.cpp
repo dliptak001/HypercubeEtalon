@@ -1,6 +1,7 @@
 #include "RamanDataset.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cstdlib>
 #include <fstream>
 #include <stdexcept>
@@ -25,10 +26,14 @@ std::vector<int> ListDataIndices(const std::filesystem::path& dir)
             continue;
         }
         const auto stem = name.substr(0, name.size() - kSuffixLen);
-        size_t pos = 0;
-        const int v = std::stoi(stem, &pos);
-        if (pos != stem.size() || v < 0)
+        int v = 0;
+        const auto parsed = std::from_chars(
+            stem.data(), stem.data() + stem.size(), v);
+        if (parsed.ec != std::errc{} || parsed.ptr != stem.data() + stem.size()
+            || v < 0)
+        {
             continue;
+        }
         idx.push_back(v);
     }
     std::sort(idx.begin(), idx.end());
@@ -48,7 +53,7 @@ void ReadSpectrum(const std::filesystem::path& path, float* dest)
     const char* p = line.c_str();
     char* end = nullptr;
     size_t n = 0;
-    while (n < kRamanBins)
+    while (n < kN)
     {
         dest[n] = std::strtof(p, &end);
         if (end == p)
@@ -61,11 +66,21 @@ void ReadSpectrum(const std::filesystem::path& path, float* dest)
         }
         break;
     }
-    if (n != kRamanBins)
+    if (n != kN)
     {
         throw std::runtime_error("expected 2048 values in " + path.string()
                                  + ", got " + std::to_string(n));
     }
+
+    const char* tail = end;
+    if (*tail == ',')
+    {
+        throw std::runtime_error("trailing data in " + path.string());
+    }
+    while (*tail == ' ' || *tail == '\t' || *tail == '\r')
+        ++tail;
+    if (*tail != '\0')
+        throw std::runtime_error("trailing data in " + path.string());
 }
 
 } // namespace
@@ -93,16 +108,16 @@ RamanSplit LoadRamanSplit(const std::filesystem::path& dir, size_t prefix)
 
     RamanSplit split;
     split.count = n;
-    split.spectra.resize(n * kRamanBins);
-    split.baselines.resize(n * kRamanBins);
+    split.spectra.resize(n * kN);
+    split.baselines.resize(n * kN);
 
     for (size_t i = 0; i < n; ++i)
     {
-        const auto stem = std::to_string(indices[static_cast<size_t>(i)]);
+        const auto stem = std::to_string(indices[i]);
         ReadSpectrum(dir / (stem + ".data.txt"),
-                     split.spectra.data() + i * kRamanBins);
+                     split.spectra.data() + i * kN);
         ReadSpectrum(dir / (stem + ".label.txt"),
-                     split.baselines.data() + i * kRamanBins);
+                     split.baselines.data() + i * kN);
     }
     return split;
 }

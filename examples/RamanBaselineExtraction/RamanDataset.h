@@ -1,11 +1,11 @@
 #pragma once
 
+#include "BaselineExtractor.h"
+
 #include <cstddef>
 #include <filesystem>
 #include <span>
 #include <vector>
-
-static constexpr size_t kRamanBins = 2048;
 
 struct RamanSplit
 {
@@ -15,12 +15,12 @@ struct RamanSplit
 
     [[nodiscard]] std::span<const float> Spectrum(size_t i) const
     {
-        return {spectra.data() + i * kRamanBins, kRamanBins};
+        return {spectra.data() + i * kN, kN};
     }
 
     [[nodiscard]] std::span<const float> Baseline(size_t i) const
     {
-        return {baselines.data() + i * kRamanBins, kRamanBins};
+        return {baselines.data() + i * kN, kN};
     }
 };
 
