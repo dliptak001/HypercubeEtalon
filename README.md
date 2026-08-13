@@ -103,24 +103,22 @@ int cls = et.PredictClass(field);
 ```
 
 ```text
-x[N]  →  [optional collect-only noise]  →  Exciter  →  y[N]  →  Readout
-                                         (or skip: y = x)
+x[N]  →  Exciter  →  y[N]  →  Readout
+          (or skip: y = x)
 ```
 
 | Call | What it does |
 |------|----------------|
-| `Run` | Map one field. No noise. Updates `LastFeatures`. |
-| `Collect` / `CollectBatch` | Map (optional noise) and keep the sample. `CollectBatch` fans independent maps across `collect_threads` workers (0 = auto). |
+| `Run` | Map one field. Updates `LastFeatures`. |
+| `Collect` / `CollectBatch` | Map and keep the sample. `CollectBatch` fans independent maps across `collect_threads` workers (0 = auto). |
 | `TrainOnCollected` | Fit the head on what you collected. |
-| `Predict` / `PredictClass` | Fresh map, then the head. No collect noise. |
+| `Predict` / `PredictClass` | Fresh map, then the head. |
 | `AccuracyOnCollected` / `R2OnCollected` | Score the **training** buffer. |
 | `Accuracy` / `R2` | Fresh map and score a set you pass in (test). |
 | `ClearCollected` | Drop the training buffer. |
 
 Your field is never overwritten. `bypass_exciter` skips the walk and
 hands the raw field to the head (the fair baseline).
-`train_input_noise_sigma` adds Gaussian noise on collect only, never on
-`Run` / `Predict`.
 
 `AccuracyOnCollected` is not a test number. Use `Accuracy` on held-out
 fields for that.

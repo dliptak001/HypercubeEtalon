@@ -79,11 +79,15 @@ Put the four uncompressed IDX files there (see
 [Appendix: MNIST files](#appendix-mnist-files)). The dataset is **not** in
 this repository.
 
-### What was not ported
+### Test noise
 
-`wtf_mnist` carried geometric aug, test-field AWGN, and two study write-ups
-about the reservoir orbit as a noise filter. Those questions are not restated
-here. Re-open them after Exciter scales and cost are settled.
+The demo can train once and score a σ grid on the packed field
+(`kTestNoiseSweep` and friends). A first Exciter-vs-bypass sweep is
+written up in [`mnist/WhiteNoiseFilter.md`](mnist/WhiteNoiseFilter.md):
+same relative filter shape as HypercubeWTF (clean near-tie, about +8
+points at σ = 0.5), not the same absolute scores.
+
+Geometric aug from `wtf_mnist` was not ported.
 
 ---
 

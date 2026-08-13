@@ -2,45 +2,14 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cmath>
 #include <condition_variable>
-#include <cstdint>
 #include <cstring>
 #include <exception>
 #include <functional>
 #include <mutex>
-#include <random>
 #include <stdexcept>
 #include <thread>
 #include <utility>
-
-namespace {
-
-uint64_t mix64(uint64_t x)
-{
-    x += 0x9E3779B97F4A7C15ULL;
-    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
-    x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
-    return x ^ (x >> 31);
-}
-
-/// y[i] = x[i] + N(0, sigma). Deterministic stream from @p salt.
-void add_gaussian_noise(const float* x, float* y, size_t n, float sigma,
-                        uint64_t salt)
-{
-    const uint64_t mixed = mix64(salt);
-    const std::uint32_t parts[2] = {
-        static_cast<std::uint32_t>(mixed),
-        static_cast<std::uint32_t>(mixed >> 32),
-    };
-    std::seed_seq seq(parts, parts + 2);
-    std::mt19937 rng(seq);
-    std::normal_distribution<float> dist(0.0f, sigma);
-    for (size_t i = 0; i < n; ++i)
-        y[i] = x[i] + dist(rng);
-}
-
-} // namespace
 
 // ---------------------------------------------------------------------------
 // Persistent collect thread pool
@@ -200,13 +169,6 @@ private:
 Etalon::Etalon(const EtalonConfig& cfg)
     : cfg_(cfg)
 {
-    if (!(cfg_.train_input_noise_sigma >= 0.0f)
-        || !std::isfinite(cfg_.train_input_noise_sigma))
-    {
-        throw std::invalid_argument(
-            "Etalon: train_input_noise_sigma must be finite and >= 0");
-    }
-
     exciter_ = Exciter::Create(cfg_.exciter);
     dim_ = exciter_->Dim();
     n_ = exciter_->N();
@@ -237,8 +199,6 @@ Etalon::Etalon(const EtalonConfig& cfg)
     CollectWorker primary;
     primary.ex = exciter_.get();
     primary.field.assign(n_, 0.0f);
-    if (cfg_.train_input_noise_sigma > 0.0f)
-        primary.noise.assign(n_, 0.0f);
     collect_workers_.push_back(std::move(primary));
 }
 
@@ -260,7 +220,6 @@ Etalon::Etalon(Etalon&& o) noexcept
       readout_(std::move(o.readout_)),
       field_scratch_(std::move(o.field_scratch_)),
       last_features_(std::move(o.last_features_)),
-      noise_field_(std::move(o.noise_field_)),
       collected_features_(std::move(o.collected_features_)),
       collected_labels_(std::move(o.collected_labels_)),
       collected_targets_(std::move(o.collected_targets_)),
@@ -289,7 +248,6 @@ Etalon& Etalon::operator=(Etalon&& o) noexcept
     readout_ = std::move(o.readout_);
     field_scratch_ = std::move(o.field_scratch_);
     last_features_ = std::move(o.last_features_);
-    noise_field_ = std::move(o.noise_field_);
     collected_features_ = std::move(o.collected_features_);
     collected_labels_ = std::move(o.collected_labels_);
     collected_targets_ = std::move(o.collected_targets_);
@@ -349,8 +307,6 @@ void Etalon::EnsureCollectWorkers(size_t n)
             w.ex = w.owned.get();
         }
         w.field.assign(n_, 0.0f);
-        if (cfg_.train_input_noise_sigma > 0.0f)
-            w.noise.assign(n_, 0.0f);
         collect_workers_.push_back(std::move(w));
     }
 }
@@ -373,7 +329,7 @@ void Etalon::PublishLastRow(const float* rows, size_t count)
 }
 
 void Etalon::MapFeaturesParallel(const float* fields_flat, size_t count,
-                                 float* dest, bool apply_collect_noise)
+                                 float* dest)
 {
     if (count == 0)
         return;
@@ -385,24 +341,12 @@ void Etalon::MapFeaturesParallel(const float* fields_flat, size_t count,
     EnsureCollectPool(nw);
 
     const bool bypass = cfg_.bypass_exciter;
-    const float sigma = cfg_.train_input_noise_sigma;
-    const bool do_noise = apply_collect_noise && sigma > 0.0f;
-    const size_t noise_base = num_collected_;
 
     auto run_range = [&](size_t tid, size_t begin, size_t end) {
         CollectWorker& w = collect_workers_[tid];
         for (size_t i = begin; i < end; ++i)
         {
             const float* x = fields_flat + i * n_;
-            if (do_noise)
-            {
-                add_gaussian_noise(
-                    x, w.noise.data(), n_, sigma,
-                    mix64(cfg_.noise_seed
-                          ^ (0x4E4F495300000001ULL + noise_base + i)));
-                x = w.noise.data();
-            }
-
             float* out = dest + i * n_;
             if (bypass)
             {
@@ -469,8 +413,7 @@ void Etalon::MapBatchInto(std::span<const float> fields_flat,
     if (count == 0)
         return;
 
-    MapFeaturesParallel(fields_flat.data(), count, out_features.data(),
-                        /*apply_collect_noise=*/false);
+    MapFeaturesParallel(fields_flat.data(), count, out_features.data());
     PublishLastRow(out_features.data(), count);
 }
 
@@ -507,19 +450,7 @@ void Etalon::RequireRegression() const
 void Etalon::MapCollectedOne(std::span<const float> x)
 {
     last_features_.resize(n_);
-    if (cfg_.train_input_noise_sigma > 0.0f)
-    {
-        if (noise_field_.size() != n_)
-            noise_field_.assign(n_, 0.0f);
-        add_gaussian_noise(
-            x.data(), noise_field_.data(), n_, cfg_.train_input_noise_sigma,
-            mix64(cfg_.noise_seed ^ (0x4E4F495300000001ULL + num_collected_)));
-        MapInto(noise_field_, last_features_.data());
-    }
-    else
-    {
-        MapInto(x, last_features_.data());
-    }
+    MapInto(x, last_features_.data());
 }
 
 void Etalon::Collect(std::span<const float> x, int class_label)
@@ -614,8 +545,7 @@ void Etalon::CollectBatch(std::span<const float> fields_flat,
                     count * sizeof(int));
         collected_features_.resize((base + count) * n_);
         MapFeaturesParallel(fields_flat.data(), count,
-                            collected_features_.data() + base * n_,
-                            /*apply_collect_noise=*/true);
+                            collected_features_.data() + base * n_);
     }
     catch (...)
     {
@@ -657,8 +587,7 @@ void Etalon::CollectBatch(std::span<const float> fields_flat,
                     count * no * sizeof(float));
         collected_features_.resize((base + count) * n_);
         MapFeaturesParallel(fields_flat.data(), count,
-                            collected_features_.data() + base * n_,
-                            /*apply_collect_noise=*/true);
+                            collected_features_.data() + base * n_);
     }
     catch (...)
     {

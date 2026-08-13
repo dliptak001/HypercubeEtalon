@@ -49,9 +49,6 @@ static EtalonConfig MakeBaseConfig()
     cfg.exciter.input_scaling = 0.30f;
     cfg.exciter.weight_scaling = 0.25f;
 
-    cfg.train_input_noise_sigma = 0.0f;
-    cfg.noise_seed = 1;
-
     cfg.readout.dim = 0; // auto
     cfg.readout.num_outputs = kNumClasses;
     cfg.readout.task = ReadoutTask::Classification;

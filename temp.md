@@ -91,10 +91,10 @@ bypass. The bounce is a whisper and still does not match the raw pack.
 - A long bounce can destroy useful information. That fear was fair.
 - A short bounce does not. Signal survives. That is the hope.
 - On **clean** packed MNIST, the packed field is the better feature
-  for this head. The bank is not earning its keep there.
-- If it ever wins, it will be on a harder test (noise on the test
-  field, occlusion, a nastier pack), not another 2 000 images or
-  another 10 epochs on the same clean digits.
-
-Demo-only test AWGN (`kTestNoiseSigma` in `etalon_mnist.cpp`) is the
-next knob for that harder test. It is off in every number above.
+  for this head. The leftover gap is a few tenths, not a recipe win.
+- Under **test-field AWGN** the bank does earn its keep. A later
+  60k / 5k sweep (`halvings = 6`) crossed bypass between σ = 0.1 and
+  0.2 and held about +8 to +9 points from σ = 0.5 to 1.0. Same
+  relative shape as the HypercubeWTF white-noise pre-filter, lower
+  absolute scores. Write-up:
+  [`examples/mnist/WhiteNoiseFilter.md`](examples/mnist/WhiteNoiseFilter.md).

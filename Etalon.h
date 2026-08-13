@@ -4,7 +4,6 @@
 #include "Readout.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <span>
 #include <vector>
@@ -21,18 +20,8 @@ struct EtalonConfig
     ReadoutConfig readout{};
 
     /// If true, skip the Exciter: readout features are a copy of the length-N
-    /// field. Useful as a baseline / ablation. Train-input noise still applies
-    /// on collect when σ > 0.
+    /// field. Useful as a baseline / ablation.
     bool bypass_exciter = false;
-
-    /// Collect-only i.i.d. Gaussian noise on the field before mapping
-    /// (σ of N(0,σ) per vertex). 0 = off. Applied on @ref Collect only —
-    /// not on @ref Run / @ref Predict / @ref PredictClass. Deterministic from
-    /// @ref noise_seed + sample index.
-    float train_input_noise_sigma = 0.0f;
-
-    /// Seed for collect-only noise (not the Exciter weight seed).
-    uint64_t noise_seed = 1;
 
     /// Parallel workers for bulk @ref Etalon::CollectBatch / @ref Etalon::Accuracy /
     /// @ref Etalon::R2 (each extra worker owns an Exciter with the same frozen
@@ -51,11 +40,10 @@ struct EtalonConfig
 /// @brief HypercubeEtalon product façade: length-N field → Exciter bank → HCNN.
 ///
 /// ```
-///   x[N]  ──▶  [optional train noise]  ──▶  Exciter::ExciteCube  ──▶  y[N]
-///                                                                   │
-///                                              (or bypass: y = x)   │
-///                                                                   ▼
-///                                                         Readout (trains)
+///   x[N]  ──▶  Exciter::ExciteCube  ──▶  y[N]
+///                  (or bypass: y = x)     │
+///                                         ▼
+///                               Readout (trains)
 /// ```
 ///
 /// Lifecycle: @ref Collect → @ref TrainOnCollected → @ref Predict /
@@ -100,7 +88,7 @@ public:
     // ----- Map field → features -----
 
     /// Map one length-N field to features. Does not modify @p x.
-    /// Updates @ref LastFeatures. No train-input noise.
+    /// Updates @ref LastFeatures.
     void Run(std::span<const float> x);
 
     /// Features from the most recent successful map on this instance
@@ -115,11 +103,11 @@ public:
     /// Does not free collect-worker Exciters or the collect thread pool.
     void ClearCollected();
 
-    /// Map @p x (with optional collect-only noise), append features + class label.
+    /// Map @p x, append features + class label.
     /// Updates @ref LastFeatures. Classification task only.
     void Collect(std::span<const float> x, int class_label);
 
-    /// Map @p x (with optional collect-only noise), append features + targets.
+    /// Map @p x, append features + targets.
     /// @p target length must equal NumOutputs(). Regression task only.
     void Collect(std::span<const float> x, std::span<const float> target);
 
@@ -145,11 +133,11 @@ public:
     // ----- Inference -----
 
     /// Fresh map + readout forward; returns NumOutputs() floats.
-    /// No train-input noise. Updates @ref LastFeatures.
+    /// Updates @ref LastFeatures.
     [[nodiscard]] std::vector<float> Predict(std::span<const float> x);
 
     /// Fresh map + argmax class (classification only).
-    /// No train-input noise. Updates @ref LastFeatures.
+    /// Updates @ref LastFeatures.
     [[nodiscard]] int PredictClass(std::span<const float> x);
 
     /// Accuracy on the collected (training) set — not a test-set metric.
@@ -158,13 +146,13 @@ public:
     /// R² on the collected (training) set — not a test-set metric.
     [[nodiscard]] double R2OnCollected() const;
 
-    /// Fresh map (no collect noise) + classification accuracy on a caller-owned
-    /// set. @p fields_flat is sample-major, length count * N; @p labels length
+    /// Fresh map + classification accuracy on a caller-owned set.
+    /// @p fields_flat is sample-major, length count * N; @p labels length
     /// count. Updates @ref LastFeatures to the last sample.
     [[nodiscard]] double Accuracy(std::span<const float> fields_flat,
                                   std::span<const int> labels);
 
-    /// Fresh map (no collect noise) + R² on a caller-owned set.
+    /// Fresh map + R² on a caller-owned set.
     /// @p targets_flat is sample-major, length count * NumOutputs().
     /// Updates @ref LastFeatures to the last sample.
     [[nodiscard]] double R2(std::span<const float> fields_flat,
@@ -178,7 +166,6 @@ private:
         Exciter* ex = nullptr;            // non-owning view
         std::unique_ptr<Exciter> owned;   // null for primary alias
         std::vector<float> field;         // length N; ExciteCube mutates this
-        std::vector<float> noise;         // length N if train_input_noise_sigma > 0
     };
 
     /// Persistent fork-join pool (see Etalon.cpp).
@@ -189,7 +176,7 @@ private:
                       std::vector<float>& out_features);
     void MapCollectedOne(std::span<const float> x);
     void MapFeaturesParallel(const float* fields_flat, size_t count,
-                             float* dest, bool apply_collect_noise);
+                             float* dest);
     void RequireClassification() const;
     void RequireRegression() const;
 
@@ -208,7 +195,6 @@ private:
 
     std::vector<float> field_scratch_;   // length N; serial ExciteCube scratch
     std::vector<float> last_features_;   // length N
-    std::vector<float> noise_field_;     // serial Collect when σ > 0
 
     std::vector<float> collected_features_; // num_collected_ * N
     std::vector<int> collected_labels_;

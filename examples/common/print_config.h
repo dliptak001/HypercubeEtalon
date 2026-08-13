@@ -14,7 +14,7 @@ inline void PrintExciterConfig(const ExciterConfig& e)
     const size_t N = (e.dim < 8 * sizeof(size_t)) ? (size_t{1} << e.dim) : 0;
     const size_t M = (e.halvings < e.dim) ? (N >> e.halvings) : 0;
     std::printf(
-        "exciter: dim=%zu N=%zu halvings=%zu M=%zu seed=%llu in_scale=%.6g wt_scale=%.6g\n",
+        "exciter: dim=%zu N=%zu halvings=%zu etalon_subcube_size=%zu seed=%llu in_scale=%.6g wt_scale=%.6g\n",
         e.dim, N, e.halvings, M,
         static_cast<unsigned long long>(e.seed),
         static_cast<double>(e.input_scaling),
@@ -55,16 +55,13 @@ inline void PrintReadoutConfig(const Readout& ro)
 inline void PrintEtalonHeader(const char* demo_name, const Etalon& et)
 {
     const EtalonConfig& cfg = et.config();
-    std::printf("%s: N=%zu dim=%zu bypass_exciter=%s collect_threads=%zu%s "
-                "train_input_noise_sigma=%.4g noise_seed=%llu\n",
+    std::printf("%s: N=%zu dim=%zu bypass_exciter=%s collect_threads=%zu%s\n",
                 demo_name, et.N(), et.Dim(),
                 cfg.bypass_exciter ? "true" : "false",
                 cfg.collect_threads,
                 cfg.collect_threads == 0
                     ? " (auto: leave 1-2 cores free)"
-                    : "",
-                static_cast<double>(cfg.train_input_noise_sigma),
-                static_cast<unsigned long long>(cfg.noise_seed));
+                    : "");
     PrintExciterConfig(cfg.exciter);
     PrintReadoutConfig(et.readout());
     std::fflush(stdout);

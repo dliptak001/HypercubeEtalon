@@ -21,7 +21,6 @@
 #include "pack_field.h"
 #include "print_config.h"
 
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -87,9 +86,6 @@ static EtalonConfig MakeBaseConfig()
     cfg.exciter.input_scaling = 0.2;
     cfg.exciter.weight_scaling = 0.2;
 
-    cfg.train_input_noise_sigma = 0.0f;
-    cfg.noise_seed = 1;
-
     cfg.readout.dim = 0;
     cfg.readout.num_outputs = 10;
     cfg.readout.task = ReadoutTask::Classification;
@@ -115,7 +111,7 @@ static EtalonConfig MakeBaseConfig()
 // =============================================================================
 
 static constexpr PackMode kPack = PackMode::PadLowCenter;
-// Overall counts, file order. 0 = the whole IDX file.
+
 // MNIST train is 60000, test 10000. A short demo is 1000 / 500.
 static constexpr int kTrainSamples = 60000;
 static constexpr int kTestSamples = 5000;
@@ -124,21 +120,14 @@ static constexpr int kImgSide = 28;
 static constexpr int kImgPixels = kImgSide * kImgSide;
 // Soft floor on the product path (not chance on 10 classes).
 static constexpr double kMinExciterTestAcc = 0.50;
-static constexpr size_t kCollectProgress = 1000;
 
 // Occasional consistency check: pack → readout with no Exciter walk.
 static constexpr bool kRunBypass = true;
 
-// Test protocol: N(0,σ) on the packed field after PackSet, before
-// Accuracy. Not clamped. Independent of train_input_noise_sigma.
-// Example-owned — Etalon does not apply this.
-// Off = one clean test. On = train once, then start, start+step, ...
-// while <= end. start = 0 is a clean first row, not “sweep off.”
 static constexpr bool kTestNoiseSweep = true;
 static constexpr float kTestNoiseStart = 0.0f;
 static constexpr float kTestNoiseEnd = 1.0f;
 static constexpr float kTestNoiseStep = 0.1f;
-// Per-sample RNG: seed_base + index * 9973.
 static constexpr unsigned kTestNoiseSeedBase = 0x7E57u;
 
 // =============================================================================
@@ -249,27 +238,6 @@ static double ScoreNoisyTest(Etalon& et,
     return et.Accuracy(noisy, labels);
 }
 
-static void CollectWithProgress(Etalon& et,
-                                std::span<const float> fields,
-                                std::span<const int> labels,
-                                const char* name)
-{
-    const size_t n = et.N();
-    const size_t count = labels.size();
-    if (count == 0)
-        throw std::invalid_argument("CollectWithProgress: empty set");
-
-    for (size_t i = 0; i < count;)
-    {
-        const size_t take = std::min(kCollectProgress, count - i);
-        et.CollectBatch(fields.subspan(i * n, take * n),
-                        labels.subspan(i, take));
-        i += take;
-        std::printf("  %s collected %zu/%zu\n", name, i, count);
-        std::fflush(stdout);
-    }
-}
-
 struct PathResult
 {
     const char* name = "";
@@ -282,7 +250,6 @@ struct PathResult
 static Etalon TrainPath(const char* name, EtalonConfig cfg,
                         std::span<const float> train_fields,
                         std::span<const int> train_labels,
-                        bool progress,
                         PathResult& r)
 {
     r.name = name;
@@ -307,10 +274,7 @@ static Etalon TrainPath(const char* name, EtalonConfig cfg,
     auto t0 = std::chrono::steady_clock::now();
     std::printf("%s: collecting %zu fields...\n", name, train_labels.size());
     std::fflush(stdout);
-    if (progress)
-        CollectWithProgress(et, train_fields, train_labels, name);
-    else
-        et.CollectBatch(train_fields, train_labels);
+    et.CollectBatch(train_fields, train_labels);
 
     std::printf("%s: training readout on %zu samples...\n", name, et.NumCollected());
     std::fflush(stdout);
@@ -384,9 +348,6 @@ static double RunNoiseSweep(Etalon& et, const char* name,
     double clean_acc = -1.0;
     for (float sigma : grid)
     {
-        std::printf("%s: scoring %zu test fields at sigma=%.4g...\n",
-                    name, labels.size(), static_cast<double>(sigma));
-        std::fflush(stdout);
         auto t0 = std::chrono::steady_clock::now();
         const double acc = ScoreNoisyTest(et, clean_fields, labels, sigma);
         auto t1 = std::chrono::steady_clock::now();
@@ -463,8 +424,6 @@ int main(int argc, char** argv)
                         plan.pattern_length, plan.N,
                         plan.N - plan.pattern_length);
         }
-        std::printf("etalon_mnist: train/test are a file-order prefix "
-            "(0 = whole IDX file). Collect is the slow step.\n");
         const auto noise_grid = MakeTestNoiseGrid();
         PrintTestNoiseReport(noise_grid);
         std::fflush(stdout);
@@ -481,7 +440,7 @@ int main(int argc, char** argv)
         PathResult exciter;
         Etalon et = TrainPath(
             "etalon_mnist/exciter", cfg,
-            train_fields, train_labels, /*progress=*/true, exciter);
+            train_fields, train_labels, exciter);
 
         const bool sweep = kTestNoiseSweep;
         bool check_floor = true;
@@ -500,9 +459,6 @@ int main(int argc, char** argv)
         }
         else
         {
-            std::printf("%s: scoring %zu test fields...\n",
-                        exciter.name, test_labels.size());
-            std::fflush(stdout);
             auto t0 = std::chrono::steady_clock::now();
             exciter.test_acc = ScoreNoisyTest(
                 et, test_fields, test_labels, 0.0f);
@@ -519,7 +475,7 @@ int main(int argc, char** argv)
             PathResult bypass;
             Etalon bypass_et = TrainPath(
                 "etalon_mnist/bypass", bypass_cfg,
-                train_fields, train_labels, /*progress=*/false, bypass);
+                train_fields, train_labels, bypass);
             if (sweep)
             {
                 std::vector<double> bypass_accs;

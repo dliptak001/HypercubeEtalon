@@ -267,7 +267,7 @@ int main()
                 return EXIT_FAILURE;
             }
 
-            // Fresh-map Accuracy on the same fields (no collect noise) must
+            // Fresh-map Accuracy on the same fields must
             // match AccuracyOnCollected.
             const double acc_mapped = et.Accuracy(train_flat, train_labs);
             if (std::fabs(acc_mapped - acc) > 1e-5)
@@ -277,7 +277,7 @@ int main()
                 return EXIT_FAILURE;
             }
 
-            // Inference path (no collect noise; fresh map each call).
+            // Inference path (fresh map each call).
             for (int lab = 0; lab < kClasses; ++lab)
             {
                 auto field = MakeField(kN, lab, lab); // in-distribution variant
@@ -386,7 +386,7 @@ int main()
                 return EXIT_FAILURE;
             }
 
-            // LastFeatures is the last mapped row (no collect noise here).
+            // LastFeatures is the last mapped row.
             {
                 Etalon chk(MakeCfg());
                 auto last = MakeField(kN, labels.back(),
