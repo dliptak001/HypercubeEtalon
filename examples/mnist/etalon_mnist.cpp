@@ -1,18 +1,18 @@
 /// @file etalon_mnist.cpp
 /// @brief MNIST → pack length-N field → Etalon → held-out test.
 ///
-/// Pipeline: IDX load → balanced subset → PadLowCenter pack → CollectBatch
+/// Pipeline: IDX load → file-order prefix → PadLowCenter pack → CollectBatch
 /// → TrainOnCollected → Accuracy on packed test fields.
 ///
 /// Product path: pack → Exciter → readout → held-out Accuracy.
 /// Bypass (pack → readout, no walk) is opt-in via kRunBypass.
+/// Optional test-only AWGN on the packed field (train clean). Demo knobs
+/// kTestNoiseSweep / Start / End / Step. Off = clean test. On = train once,
+/// then score start, start+step, ... while <= end and print a table.
 ///
-/// Data: C:\HypercubeEtalon\data, then C:\HypercubeWTF\data
-/// (see examples/README.md appendix).
+/// Data: C:\HypercubeEtalon\data (see examples/README.md appendix).
 ///
-/// Not ported from wtf_mnist: geometric aug, test-field AWGN, or the noise
-/// study write-ups. Those are WTF-orbit questions; rerun them here only after
-/// the Exciter scales and cost are settled.
+/// Not ported from wtf_mnist: geometric aug or the noise-study write-ups.
 
 #include "Etalon.h"
 #include "find_data_dir.h"
@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <random>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -45,7 +46,7 @@ static hcnn::HCNNSpatialEmbedMode ToEmbedMode(PackMode pack)
 {
     switch (pack)
     {
-    case PackMode::PadLow:       return hcnn::HCNNSpatialEmbedMode::PadLow;
+    case PackMode::PadLow: return hcnn::HCNNSpatialEmbedMode::PadLow;
     case PackMode::PadLowCenter: return hcnn::HCNNSpatialEmbedMode::PadLowCenter;
     }
     return hcnn::HCNNSpatialEmbedMode::PadLowCenter;
@@ -55,7 +56,7 @@ static const char* PackModeName(PackMode pack)
 {
     switch (pack)
     {
-    case PackMode::PadLow:       return "PadLow";
+    case PackMode::PadLow: return "PadLow";
     case PackMode::PadLowCenter: return "PadLowCenter";
     }
     return "?";
@@ -71,12 +72,14 @@ static EtalonConfig MakeBaseConfig()
 
     // PadLow / PadLowCenter need N >= 784 → dim >= 10.
     cfg.exciter.dim = 10;
-    cfg.exciter.seed = 13871537636959942979ull;
+    cfg.exciter.seed = 38715376369942979ull;
+    cfg.exciter.halvings = 5;//6;
+
     // First-guess mixer. Too-small scales collapse the bank toward 0
     // (chance-level readout). These keep the first star O(1):
     // dim=10, |x|<=1 → typical first sum ~ dim * wt * in ≈ 1.
-    cfg.exciter.input_scaling = 0.50f;
-    cfg.exciter.weight_scaling = 0.20f;
+    cfg.exciter.input_scaling = 0.2;
+    cfg.exciter.weight_scaling = 0.2;
 
     cfg.train_input_noise_sigma = 0.0f;
     cfg.noise_seed = 1;
@@ -89,10 +92,10 @@ static EtalonConfig MakeBaseConfig()
     cfg.readout.conv_channels = 16;
     cfg.readout.channel_growth = 1;
     cfg.readout.activation = ReadoutActivation::TANH;
-    cfg.readout.epochs = 40;
-    cfg.readout.batch_size = 32;
-    cfg.readout.lr_max = 0.0015f;
-    cfg.readout.lr_min_frac = 0.01f;
+    cfg.readout.epochs = 100; // bypass - 40, etalon - 100;
+    cfg.readout.batch_size = 32; // bypass - 32, etalon - 32;
+    cfg.readout.lr_max = 0.002f;
+    cfg.readout.lr_min_frac = 0.005;
     cfg.readout.num_threads = 0; // HCNN auto
     cfg.readout.restore_best_epoch = true;
     cfg.readout.best_epoch_holdout_frac = 0.1f;
@@ -106,8 +109,10 @@ static EtalonConfig MakeBaseConfig()
 // =============================================================================
 
 static constexpr PackMode kPack = PackMode::PadLowCenter;
-static constexpr int kTrainPerClass = 100; // 1000 train
-static constexpr int kTestPerClass = 50;   // 500 test
+// Overall counts, file order. 0 = the whole IDX file.
+// MNIST train is 60000, test 10000. A short demo is 1000 / 500.
+static constexpr int kTrainSamples = 60000;
+static constexpr int kTestSamples = 5000;
 static constexpr float kPad = -1.0f;
 static constexpr int kImgSide = 28;
 static constexpr int kImgPixels = kImgSide * kImgSide;
@@ -117,6 +122,18 @@ static constexpr size_t kCollectProgress = 1000;
 
 // Occasional consistency check: pack → readout with no Exciter walk.
 static constexpr bool kRunBypass = false;
+
+// Test protocol: N(0,σ) on the packed field after PackSet, before
+// Accuracy. Not clamped. Independent of train_input_noise_sigma.
+// Example-owned — Etalon does not apply this.
+// Off = one clean test. On = train once, then start, start+step, ...
+// while <= end. start = 0 is a clean first row, not “sweep off.”
+static constexpr bool kTestNoiseSweep = true;
+static constexpr float kTestNoiseStart = 0.0f;
+static constexpr float kTestNoiseEnd = 1.0f;
+static constexpr float kTestNoiseStep = 0.1f;
+// Per-sample RNG: seed_base + index * 9973.
+static constexpr unsigned kTestNoiseSeedBase = 0x7E57u;
 
 // =============================================================================
 
@@ -136,6 +153,96 @@ static void PackSet(const etalon_ex::MnistSet& ds,
     }
 }
 
+static std::vector<float> MakeTestNoiseGrid()
+{
+    std::vector<float> grid;
+    if (!kTestNoiseSweep)
+        return grid;
+    if (!(kTestNoiseStart >= 0.0f) || !std::isfinite(kTestNoiseStart)
+        || !(kTestNoiseEnd >= 0.0f) || !std::isfinite(kTestNoiseEnd)
+        || !std::isfinite(kTestNoiseStep) || !(kTestNoiseStep > 0.0f))
+    {
+        throw std::invalid_argument(
+            "etalon_mnist: test noise sweep needs finite start/end >= 0 "
+            "and step > 0");
+    }
+    if (kTestNoiseStart > kTestNoiseEnd)
+    {
+        throw std::invalid_argument(
+            "etalon_mnist: kTestNoiseStart must be <= kTestNoiseEnd");
+    }
+    if (kTestNoiseEnd <= kTestNoiseStart)
+    {
+        grid.push_back(kTestNoiseStart);
+        return grid;
+    }
+    const double n = std::floor(
+        (static_cast<double>(kTestNoiseEnd) - kTestNoiseStart)
+        / kTestNoiseStep + 1e-6) + 1.0;
+    if (n > 1000.0)
+    {
+        throw std::invalid_argument(
+            "etalon_mnist: test noise grid would exceed 1000 points");
+    }
+    const int count = static_cast<int>(n);
+    grid.reserve(static_cast<size_t>(count));
+    for (int i = 0; i < count; ++i)
+    {
+        grid.push_back(kTestNoiseStart
+                       + kTestNoiseStep * static_cast<float>(i));
+    }
+    return grid;
+}
+
+static void PrintTestNoiseReport(const std::vector<float>& grid)
+{
+    if (!kTestNoiseSweep)
+    {
+        std::printf("etalon_mnist: test_noise=off\n");
+        return;
+    }
+    std::printf(
+        "etalon_mnist: test_noise=sweep start=%g end=%g step=%g "
+        "(%zu points) seed_base=0x%X (train once, then each sigma)\n",
+        static_cast<double>(kTestNoiseStart),
+        static_cast<double>(kTestNoiseEnd),
+        static_cast<double>(kTestNoiseStep),
+        grid.size(), kTestNoiseSeedBase);
+}
+
+/// In-place i.i.d. Gaussian on a packed field (no clamp). No-op if σ <= 0.
+static void AddTestFieldNoise(std::span<float> field, size_t sample_index,
+                              float sigma)
+{
+    if (sigma <= 0.0f)
+        return;
+    std::mt19937 rng(kTestNoiseSeedBase
+        + static_cast<unsigned>(sample_index) * 9973u);
+    std::normal_distribution<float> dist(0.0f, sigma);
+    for (float& v : field)
+        v += dist(rng);
+}
+
+static double ScoreNoisyTest(Etalon& et,
+                             std::span<const float> clean_fields,
+                             std::span<const int> labels,
+                             float sigma)
+{
+    const size_t n = et.N();
+    if (sigma <= 0.0f)
+        return et.Accuracy(clean_fields, labels);
+
+    std::vector<float> noisy(clean_fields.begin(), clean_fields.end());
+    if (noisy.size() != labels.size() * n)
+        throw std::logic_error("test pack size mismatch");
+    for (size_t i = 0; i < labels.size(); ++i)
+    {
+        AddTestFieldNoise(
+            std::span<float>(noisy.data() + i * n, n), i, sigma);
+    }
+    return et.Accuracy(noisy, labels);
+}
+
 static void CollectWithProgress(Etalon& et,
                                 std::span<const float> fields,
                                 std::span<const int> labels,
@@ -146,7 +253,7 @@ static void CollectWithProgress(Etalon& et,
     if (count == 0)
         throw std::invalid_argument("CollectWithProgress: empty set");
 
-    for (size_t i = 0; i < count; )
+    for (size_t i = 0; i < count;)
     {
         const size_t take = std::min(kCollectProgress, count - i);
         et.CollectBatch(fields.subspan(i * n, take * n),
@@ -166,14 +273,12 @@ struct PathResult
     double secs_test = 0.0;
 };
 
-static PathResult RunPath(const char* name, EtalonConfig cfg,
-                          std::span<const float> train_fields,
-                          std::span<const int> train_labels,
-                          std::span<const float> test_fields,
-                          std::span<const int> test_labels,
-                          bool progress)
+static Etalon TrainPath(const char* name, EtalonConfig cfg,
+                        std::span<const float> train_fields,
+                        std::span<const int> train_labels,
+                        bool progress,
+                        PathResult& r)
 {
-    PathResult r;
     r.name = name;
 
     Etalon et(cfg);
@@ -186,8 +291,9 @@ static PathResult RunPath(const char* name, EtalonConfig cfg,
         for (float v : et.LastFeatures())
             acc_abs += std::fabs(static_cast<double>(v));
         acc_abs /= static_cast<double>(et.N());
-        std::printf("%s: first-map mean|y|=%.4g (bank output scale; "
-                    "small is fine if structured)\n",
+        std::printf("%s: after one walk, the N bank values average %.4g "
+                    "in size (near 0 the field was crushed; around 1 is "
+                    "the usual working scale)\n",
                     name, acc_abs);
         std::fflush(stdout);
     }
@@ -205,22 +311,37 @@ static PathResult RunPath(const char* name, EtalonConfig cfg,
     et.TrainOnCollected();
     r.train_acc = et.AccuracyOnCollected();
     auto t1 = std::chrono::steady_clock::now();
-
-    std::printf("%s: scoring %zu test fields...\n", name, test_labels.size());
-    std::fflush(stdout);
-    r.test_acc = et.Accuracy(test_fields, test_labels);
-    auto t2 = std::chrono::steady_clock::now();
-
     r.secs_collect_train = std::chrono::duration<double>(t1 - t0).count();
-    r.secs_test = std::chrono::duration<double>(t2 - t1).count();
+    return et;
+}
 
+static void PrintPathSummary(const PathResult& r)
+{
     std::printf("%s: train_acc=%.3f test_acc=%.3f  time %.1f+%.1f=%.1fs "
                 "(collect+train|test|total)\n",
-                name, r.train_acc, r.test_acc,
+                r.name, r.train_acc, r.test_acc,
                 r.secs_collect_train, r.secs_test,
                 r.secs_collect_train + r.secs_test);
     std::fflush(stdout);
-    return r;
+}
+
+static void PrintNoiseSweepTable(const char* name, double train_acc,
+                                 double collect_train_s,
+                                 std::span<const float> sigmas,
+                                 std::span<const double> accs,
+                                 std::span<const double> secs)
+{
+    std::printf("%s: train_acc=%.3f  (collect+train %.1fs); "
+                "test noise sweep (%zu sigmas)\n",
+                name, train_acc, collect_train_s, sigmas.size());
+    std::printf("  sigma      test_acc    test_s\n");
+    std::printf("  ---------  --------    ------\n");
+    for (size_t i = 0; i < sigmas.size(); ++i)
+    {
+        std::printf("  %9.4f  %8.3f    %6.1f\n",
+                    static_cast<double>(sigmas[i]), accs[i], secs[i]);
+    }
+    std::fflush(stdout);
 }
 
 // =============================================================================
@@ -247,15 +368,20 @@ int main(int argc, char** argv)
         std::printf("etalon_mnist: loading IDX from %s\n", data_str.c_str());
         std::fflush(stdout);
 
-        auto train_all = etalon_ex::LoadMnist(
+        if (kTrainSamples < 0 || kTestSamples < 0)
+        {
+            throw std::invalid_argument(
+                "etalon_mnist: kTrainSamples / kTestSamples must be >= 0 "
+                "(0 = whole file)");
+        }
+        const auto train = etalon_ex::LoadMnist(
             (data_dir / "train-images-idx3-ubyte").string(),
-            (data_dir / "train-labels-idx1-ubyte").string(), 0);
-        auto test_all = etalon_ex::LoadMnist(
+            (data_dir / "train-labels-idx1-ubyte").string(),
+            static_cast<size_t>(kTrainSamples));
+        const auto test = etalon_ex::LoadMnist(
             (data_dir / "t10k-images-idx3-ubyte").string(),
-            (data_dir / "t10k-labels-idx1-ubyte").string(), 0);
-
-        const auto train = etalon_ex::TakePerClass(train_all, kTrainPerClass);
-        const auto test = etalon_ex::TakePerClass(test_all, kTestPerClass);
+            (data_dir / "t10k-labels-idx1-ubyte").string(),
+            static_cast<size_t>(kTestSamples));
 
         const auto emb = etalon_ex::MakeMnistEmbedder(
             static_cast<int>(base.exciter.dim), ToEmbedMode(kPack), kPad);
@@ -281,8 +407,10 @@ int main(int argc, char** argv)
                         plan.pattern_length, plan.N,
                         plan.N - plan.pattern_length);
         }
-        std::printf("etalon_mnist: subset is balanced per class; "
-                    "not the 60k recipe. Exciter collect is the slow step.\n");
+        std::printf("etalon_mnist: train/test are a file-order prefix "
+            "(0 = whole IDX file). Collect is the slow step.\n");
+        const auto noise_grid = MakeTestNoiseGrid();
+        PrintTestNoiseReport(noise_grid);
         std::fflush(stdout);
 
         std::vector<float> train_fields;
@@ -294,31 +422,94 @@ int main(int argc, char** argv)
 
         EtalonConfig cfg = base;
         cfg.bypass_exciter = false;
-        const PathResult exciter = RunPath(
+        PathResult exciter;
+        Etalon et = TrainPath(
             "etalon_mnist/exciter", cfg,
-            train_fields, train_labels, test_fields, test_labels,
-            /*progress=*/true);
+            train_fields, train_labels, /*progress=*/true, exciter);
+
+        const bool sweep = kTestNoiseSweep;
+        bool check_floor = true;
+        if (sweep)
+        {
+            const auto& grid = noise_grid;
+            std::vector<double> accs;
+            std::vector<double> secs;
+            accs.reserve(grid.size());
+            secs.reserve(grid.size());
+            double clean_acc = -1.0;
+            for (float sigma : grid)
+            {
+                std::printf("%s: scoring %zu test fields at sigma=%.4g...\n",
+                            exciter.name, test_labels.size(),
+                            static_cast<double>(sigma));
+                std::fflush(stdout);
+                auto t0 = std::chrono::steady_clock::now();
+                const double acc = ScoreNoisyTest(
+                    et, test_fields, test_labels, sigma);
+                auto t1 = std::chrono::steady_clock::now();
+                const double s = std::chrono::duration<double>(t1 - t0).count();
+                accs.push_back(acc);
+                secs.push_back(s);
+                if (sigma <= 0.0f)
+                    clean_acc = acc;
+            }
+            PrintNoiseSweepTable(exciter.name, exciter.train_acc,
+                                 exciter.secs_collect_train,
+                                 grid, accs, secs);
+            if (clean_acc >= 0.0)
+                exciter.test_acc = clean_acc;
+            else
+                check_floor = false;
+        }
+        else
+        {
+            std::printf("%s: scoring %zu test fields...\n",
+                        exciter.name, test_labels.size());
+            std::fflush(stdout);
+            auto t0 = std::chrono::steady_clock::now();
+            exciter.test_acc = ScoreNoisyTest(
+                et, test_fields, test_labels, 0.0f);
+            auto t1 = std::chrono::steady_clock::now();
+            exciter.secs_test = std::chrono::duration<double>(t1 - t0).count();
+            PrintPathSummary(exciter);
+        }
 
         if (kRunBypass)
         {
-            EtalonConfig bypass_cfg = base;
-            bypass_cfg.bypass_exciter = true;
-            const PathResult bypass = RunPath(
-                "etalon_mnist/bypass", bypass_cfg,
-                train_fields, train_labels, test_fields, test_labels,
-                /*progress=*/false);
-            std::printf("etalon_mnist: test_acc delta (exciter - bypass) = %+.3f\n",
-                        exciter.test_acc - bypass.test_acc);
-            if (bypass.test_acc > exciter.test_acc + 0.05)
+            if (sweep)
             {
-                std::printf("etalon_mnist: note: bypass wins -- packed digits "
-                            "are already a readout task; the bank has no "
-                            "winning recipe yet\n");
+                std::printf("etalon_mnist: note: test-noise sweep skips bypass "
+                            "(kRunBypass is on; sweep is the exciter path)\n");
+                std::fflush(stdout);
             }
-            std::fflush(stdout);
+            else
+            {
+                EtalonConfig bypass_cfg = base;
+                bypass_cfg.bypass_exciter = true;
+                PathResult bypass;
+                Etalon bypass_et = TrainPath(
+                    "etalon_mnist/bypass", bypass_cfg,
+                    train_fields, train_labels, /*progress=*/false, bypass);
+                auto t0 = std::chrono::steady_clock::now();
+                bypass.test_acc = ScoreNoisyTest(
+                    bypass_et, test_fields, test_labels, 0.0f);
+                auto t1 = std::chrono::steady_clock::now();
+                bypass.secs_test =
+                    std::chrono::duration<double>(t1 - t0).count();
+                PrintPathSummary(bypass);
+                std::printf("etalon_mnist: test_acc delta (exciter - bypass) = %+.3f\n",
+                            exciter.test_acc - bypass.test_acc);
+                if (bypass.test_acc > exciter.test_acc + 0.05)
+                {
+                    std::printf("etalon_mnist: note: bypass wins -- packed digits "
+                        "are already a readout task; the bank has no "
+                        "winning recipe yet\n");
+                }
+                std::fflush(stdout);
+            }
         }
 
-        if (exciter.test_acc < kMinExciterTestAcc)
+        if (check_floor && exciter.test_acc < kMinExciterTestAcc)
         {
             std::fprintf(stderr,
                          "etalon_mnist: Exciter test accuracy too low "
@@ -335,7 +526,7 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "etalon_mnist: %s\n", e.what());
         std::fprintf(stderr,
                      "Place uncompressed MNIST IDX files in "
-                     "C:\\HypercubeEtalon\\data or C:\\HypercubeWTF\\data:\n"
+                     "C:\\HypercubeEtalon\\data:\n"
                      "  train-images-idx3-ubyte  train-labels-idx1-ubyte\n"
                      "  t10k-images-idx3-ubyte   t10k-labels-idx1-ubyte\n"
                      "See examples/README.md (Appendix: MNIST files)\n");

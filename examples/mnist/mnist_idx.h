@@ -102,26 +102,4 @@ inline MnistSet LoadMnist(const std::string& images_path,
     return ds;
 }
 
-/// First @p per_class samples of each digit 0..9, in file order.
-/// Shorter than 10 * per_class if a class is scarce.
-inline MnistSet TakePerClass(const MnistSet& src, int per_class)
-{
-    if (per_class < 1)
-        throw std::invalid_argument("TakePerClass: per_class must be >= 1");
-
-    std::vector<int> taken(10, 0);
-    MnistSet out;
-    out.samples.reserve(static_cast<size_t>(per_class) * 10u);
-    for (const auto& s : src.samples)
-    {
-        if (s.label < 0 || s.label > 9)
-            continue;
-        if (taken[static_cast<size_t>(s.label)] >= per_class)
-            continue;
-        out.samples.push_back(s);
-        ++taken[static_cast<size_t>(s.label)];
-    }
-    return out;
-}
-
 } // namespace etalon_ex

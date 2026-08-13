@@ -10,6 +10,13 @@ the cube.
 
 The product path is the **Exciter**. Bypass (skip the walk) is an optional
 consistency check: set `kRunBypass` in the demo `.cpp` when you want it.
+`etalon_mnist` can add test-only Gaussian noise on the packed field.
+Train stays clean. That protocol lives only in the example
+(`kTestNoiseSweep` / `kTestNoiseStart` / `kTestNoiseEnd` /
+`kTestNoiseStep`). Off = one clean test. On = train once, then score
+`start, start+step, ...` while `<= end` and print a table. `start = 0`
+is a clean first row, not off. The shipped demo turns the sweep on at
+`0, 1, 0.1` (11 points).
 
 Build in **Release**, then run the binary you care about. Debug is slower
 and, with `-ffast-math` off, not the number you want to quote.
@@ -39,15 +46,18 @@ Same loop, inputs are MNIST digits packed with HCNN SpatialEmbed
 (`PadLowCenter` by default: full 28x28 plus a centered crop in the tail,
 which fills N = 1024 at dim 10).
 
-### Defaults are a subset
+### Train / test size
 
-The shipped constants take **100 train / 50 test per digit** (1000 / 500),
-class-balanced, first-in-file-order. That is a demo you can finish, not a
-leaderboard run. The soft pass/fail floor is on **Exciter** test accuracy.
+`kTrainSamples` and `kTestSamples` are **overall** counts, first-in-file-order
+(not per digit). `0` means the whole IDX file. MNIST train is 60000, test
+10000; `60000` / `5000` is the usual full-train / half-test cut. A small
+prefix (`1000` / `500`) is the short demo.
 
 A full 60k collect at dim 10 is one Exciter bank pass per image.
-Even with the default half-cube walk that is a lot of tanh updates.
-Raise `kTrainPerClass` only when you mean to wait.
+Even with a short walk that is a lot of tanh updates.
+`CollectBatch` fans those independent maps across workers
+(`EtalonConfig::collect_threads`, default auto: leave 1–2 cores free).
+Raise `kTrainSamples` only when you mean to wait.
 
 Do **not** treat the subset score as the best this family can do.
 HypercubeCNN alone has already shown about 99.5% on MNIST; this example is
@@ -57,17 +67,15 @@ Source: [`mnist/etalon_mnist.cpp`](mnist/etalon_mnist.cpp).
 
 ### Data setup
 
-`etalon_mnist` does **not** read MNIST from this git clone. It looks only at
-fixed deploy folders, in order:
+`etalon_mnist` does **not** read MNIST from this git clone. It looks only at:
 
 ```text
 C:\HypercubeEtalon\data\
-C:\HypercubeWTF\data\
 ```
 
-Put the four uncompressed IDX files in either place (see
+Put the four uncompressed IDX files there (see
 [Appendix: MNIST files](#appendix-mnist-files)). The dataset is **not** in
-this repository. If you already have the WTF copy, you do not need a second.
+this repository.
 
 ### What was not ported
 
@@ -94,8 +102,7 @@ To add another demo: `examples/<name>/`, a target in the root
 
 ## Appendix: MNIST files
 
-**Locations (first hit wins):** `C:\HypercubeEtalon\data\` then
-`C:\HypercubeWTF\data\`
+**Location:** `C:\HypercubeEtalon\data\`
 
 **Required files** (uncompressed IDX, exact names):
 
@@ -120,4 +127,4 @@ gunzip *.gz
 ```
 
 On Windows, any tool that downloads those four `.gz` files and decompresses
-them into one of the deploy folders is fine.
+them into `C:\HypercubeEtalon\data` is fine.
