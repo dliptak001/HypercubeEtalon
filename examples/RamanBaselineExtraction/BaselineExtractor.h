@@ -23,7 +23,7 @@ inline EtalonConfig MakeConfig()
     cfg.readout.activation = ReadoutActivation::NONE;
     cfg.readout.batch_size = 48;
 
-    cfg.readout.conv_channels = 1;
+    cfg.readout.conv_channels = 2;
     cfg.readout.channel_growth = 1;
     cfg.readout.num_layers = 1;
     cfg.readout.use_pooling = false;

@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 static constexpr int kTrainSamples = 10000;
@@ -67,6 +68,19 @@ int main()
                     train.count, test.count,
                     kSkipTrain ? "true" : "false");
         etalon_ex::PrintEtalonHeader("etalon_raman", ex.etalon());
+        {
+            // Same resolve as HCNN ThreadPool: 0 = auto (hw-1 workers + caller),
+            // 1 = caller only, N > 1 = N workers + caller.
+            const unsigned hw = std::thread::hardware_concurrency();
+            const size_t knob = ex.config().readout.num_threads;
+            size_t pool_nt = 1;
+            if (knob == 0)
+                pool_nt = (hw > 1) ? static_cast<size_t>(hw) : 1;
+            else if (knob > 1)
+                pool_nt = knob + 1;
+            std::printf("etalon_raman: hw=%u pool_nt=%zu\n", hw, pool_nt);
+            std::fflush(stdout);
+        }
 
         if (kSkipTrain)
         {
