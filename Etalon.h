@@ -73,6 +73,13 @@ public:
     [[nodiscard]] size_t Dim() const { return dim_; }
     [[nodiscard]] size_t N() const { return n_; }
     [[nodiscard]] size_t NumCollected() const { return num_collected_; }
+    /// Collected feature rows, sample-major, length @ref NumCollected() * N.
+    /// Empty when nothing has been collected. Valid until the next
+    /// @ref Collect / @ref CollectBatch / @ref ClearCollected.
+    [[nodiscard]] std::span<const float> CollectedFeatures() const
+    {
+        return collected_features_;
+    }
     [[nodiscard]] size_t NumOutputs() const { return readout_->NumOutputs(); }
     /// Configured collect-thread preference (0 = auto). Actual workers used on
     /// a given bulk map are min(resolved, sample_count).

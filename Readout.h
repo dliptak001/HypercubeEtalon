@@ -95,8 +95,10 @@ struct ReadoutConfig
     /// to [0, 0.5]. Requires at least 2 samples when > 0.
     float best_epoch_holdout_frac = 0.0f;
 
-    /// Optional. Called after each @ref Readout::Train epoch. Null by default.
-    void (*epoch_tick)() = nullptr;
+    /// Optional. Called after each @ref Readout::Train epoch with the 1-based
+    /// epoch index and the training-set error (regression: MSE; classification:
+    /// mean softmax cross-entropy). Null by default.
+    void (*epoch_tick)(int epoch, double train_error) = nullptr;
 };
 
 /// @brief Trainable HypercubeCNN façade: length-N field → task outputs.

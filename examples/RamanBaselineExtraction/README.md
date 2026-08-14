@@ -111,8 +111,11 @@ RMSE    = sqrt( mean( err[i]^2 ) )
 On a split (train prefix or validation prefix), take the mean of those
 per-spectrum MSEs, then sqrt — same as RMSE over every bin in the split.
 
-That is the number this example reports. Peaks and percent-of-peak error
-are out of scope.
+That is the number this example reports — the same denormalized RMS as
+the C# trainer (`ComputeRMS` / epoch callback). Each readout epoch prints
+train `train_rmse`. After fit, the same score is printed on the train
+prefix and the validation prefix. Peaks and percent-of-peak error are
+out of scope.
 
 ---
 

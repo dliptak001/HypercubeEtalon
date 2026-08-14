@@ -265,16 +265,34 @@ void Readout::Train(const float* states, const float* targets,
 
     for (int e = 0; e < config_.epochs; ++e) {
         trainer.train_epoch(train_in, train_targets, config_.batch_size, e);
-        if (config_.epoch_tick)
-            config_.epoch_tick();
 
-        if (!config_.restore_best_epoch || n_score == 0)
+        const bool want_tick = config_.epoch_tick != nullptr;
+        const bool want_score = config_.restore_best_epoch && n_score > 0;
+        const bool same_set = (train_states == score_states && n_train == n_score);
+
+        if (want_tick && want_score && same_set)
+        {
+            hcnn::HCNNRegEval r = hcnn::evaluate_regression(
+                *net_, train_states, n, train_targets,
+                static_cast<int>(n_train), static_cast<int>(K));
+            best_reg.observe(*net_, static_cast<float>(r.mse), e + 1);
+            config_.epoch_tick(e + 1, r.mse);
             continue;
-
-        hcnn::HCNNRegEval r = hcnn::evaluate_regression(
-            *net_, score_states, n, score_targets,
-            static_cast<int>(n_score), static_cast<int>(K));
-        best_reg.observe(*net_, static_cast<float>(r.mse), e + 1);
+        }
+        if (want_tick && n_train > 0)
+        {
+            hcnn::HCNNRegEval r = hcnn::evaluate_regression(
+                *net_, train_states, n, train_targets,
+                static_cast<int>(n_train), static_cast<int>(K));
+            config_.epoch_tick(e + 1, r.mse);
+        }
+        if (want_score)
+        {
+            hcnn::HCNNRegEval r = hcnn::evaluate_regression(
+                *net_, score_states, n, score_targets,
+                static_cast<int>(n_score), static_cast<int>(K));
+            best_reg.observe(*net_, static_cast<float>(r.mse), e + 1);
+        }
     }
 
     if (!config_.restore_best_epoch)
@@ -341,15 +359,34 @@ void Readout::Train(const float* states, const int* class_labels,
 
     for (int e = 0; e < config_.epochs; ++e) {
         trainer.train_epoch(train_in, train_labels, config_.batch_size, e);
-        if (config_.epoch_tick)
-            config_.epoch_tick();
 
-        if (!config_.restore_best_epoch || n_score == 0)
+        const bool want_tick = config_.epoch_tick != nullptr;
+        const bool want_score = config_.restore_best_epoch && n_score > 0;
+        const bool same_set = (train_states == score_states && n_train == n_score);
+
+        if (want_tick && want_score && same_set)
+        {
+            hcnn::HCNNClassEval r = hcnn::evaluate_classification(
+                *net_, train_states, n, train_labels,
+                static_cast<int>(n_train));
+            best_cls.observe(*net_, r.loss, r.accuracy, e + 1);
+            config_.epoch_tick(e + 1, static_cast<double>(r.loss));
             continue;
-
-        hcnn::HCNNClassEval r = hcnn::evaluate_classification(
-            *net_, score_states, n, score_int, static_cast<int>(n_score));
-        best_cls.observe(*net_, r.loss, r.accuracy, e + 1);
+        }
+        if (want_tick && n_train > 0)
+        {
+            hcnn::HCNNClassEval r = hcnn::evaluate_classification(
+                *net_, train_states, n, train_labels,
+                static_cast<int>(n_train));
+            config_.epoch_tick(e + 1, static_cast<double>(r.loss));
+        }
+        if (want_score)
+        {
+            hcnn::HCNNClassEval r = hcnn::evaluate_classification(
+                *net_, score_states, n, score_int,
+                static_cast<int>(n_score));
+            best_cls.observe(*net_, r.loss, r.accuracy, e + 1);
+        }
     }
 
     if (!config_.restore_best_epoch)

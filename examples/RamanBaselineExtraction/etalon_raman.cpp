@@ -11,28 +11,16 @@ static constexpr int kTrainSamples = 1000;
 static constexpr int kTestSamples = 100;
 static constexpr bool kRunBypass = true;
 
-static constexpr const char* kDataRoot = "C:/MLPlayground/Datasets/data";
+static constexpr const char* kDataRoot = "C:/HypercubeEtalon/RamanSpectra";
 
-static int s_epoch_on_line = 0;
+static BaselineExtractor* s_ex = nullptr;
+static const RamanSplit* s_train = nullptr;
 
-static void EpochTick()
+static void EpochTick(int epoch, double)
 {
-    std::fputc('.', stdout);
-    if (++s_epoch_on_line == 10)
-    {
-        std::fputc('\n', stdout);
-        s_epoch_on_line = 0;
-    }
+    const double train_rmse = RamanRmseOnCollected(*s_ex, *s_train);
+    std::printf("etalon_raman: epoch=%d train_rmse=%.6f\n", epoch, train_rmse);
     std::fflush(stdout);
-}
-
-static void FinishEpochTicks()
-{
-    if (s_epoch_on_line == 0)
-        return;
-    std::fputc('\n', stdout);
-    std::fflush(stdout);
-    s_epoch_on_line = 0;
 }
 
 int main()
@@ -62,6 +50,8 @@ int main()
         BaselineExtractor ex(cfg);
         if (ex.N() != kN)
             throw std::logic_error("extractor N must equal kN");
+        s_ex = &ex;
+        s_train = &train;
 
         std::printf("etalon_raman: train=%zu val=%zu N=%zu bypass=%s\n",
                     train.count, test.count, ex.N(),
@@ -75,7 +65,6 @@ int main()
         const auto t0 = std::chrono::steady_clock::now();
         ex.Train();
         const auto t1 = std::chrono::steady_clock::now();
-        FinishEpochTicks();
         const double train_secs =
             std::chrono::duration<double>(t1 - t0).count();
         std::printf("etalon_raman: trained time=%.2fs\n", train_secs);
