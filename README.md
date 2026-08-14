@@ -7,11 +7,6 @@ and writes back a new number for each starting corner. A small
 That is the whole product. One map, one trainable head. No reservoir orbit,
 no delay line, no leak.
 
-The cube library lives under `third_party/HypercubeCNN/` (Apache-2.0,
-release 1.0.3). This repo builds it as `HypercubeCNNCore` and the host as
-`HypercubeEtalonCore`: Exciter, Readout, and the `Etalon` wrapper you
-actually call.
-
 ## The cube
 
 There are N corners, `N = 2ᵈⁱᵐ`. Label them `0 … N−1`. Two corners are
@@ -132,17 +127,6 @@ et.readout().SaveHcnnModel("out/readout");
 et.readout().LoadHcnnModel("out/readout");
 et.readout().IsTrained();
 ```
-
-## Sizes
-
-| Piece | dim | Why |
-|-------|-----|-----|
-| Exciter | 4 … 12 | Smallest useful star … cost cap (`N = 4096`); default `subcube_dim = 6` |
-| Readout | 3 … 30 | What HypercubeCNN allows. With pooling, `num_layers ≤ dim−2` |
-| Etalon | 4 … 12 | Matches the Exciter; `readout.dim` fills in if you leave it 0 |
-
-Prefer `dim ≥ 5` so a pooled head has room. Dim 4 still builds. Bad
-stacks throw `std::invalid_argument` in Debug and Release.
 
 You can use `Exciter` and `Readout` without `Etalon`. `ExciteCube` scales
 its buffer in place and returns a pointer that dies on the next call.
