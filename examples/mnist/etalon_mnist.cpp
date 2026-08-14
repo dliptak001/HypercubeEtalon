@@ -78,7 +78,7 @@ static EtalonConfig MakeBaseConfig()
     // PadLow / PadLowCenter need N >= 784 → dim >= 10.
     cfg.exciter.dim = 10;
     cfg.exciter.seed = 38715376369942979ull;
-    cfg.exciter.halvings = 6;
+    cfg.exciter.subcube_dim = 4;
     cfg.exciter.input_scaling = 0.25;
     cfg.exciter.weight_scaling = 0.2;
 

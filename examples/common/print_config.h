@@ -12,10 +12,12 @@ namespace etalon_ex {
 inline void PrintExciterConfig(const ExciterConfig& e)
 {
     const size_t N = (e.dim < 8 * sizeof(size_t)) ? (size_t{1} << e.dim) : 0;
-    const size_t M = (e.halvings < e.dim) ? (N >> e.halvings) : 0;
+    const size_t M = (e.subcube_dim >= 1 && e.subcube_dim <= e.dim)
+                         ? (size_t{1} << e.subcube_dim)
+                         : 0;
     std::printf(
-        "exciter: dim=%zu N=%zu halvings=%zu etalon_subcube_size=%zu seed=%llu in_scale=%.6g wt_scale=%.6g\n",
-        e.dim, N, e.halvings, M,
+        "exciter: dim=%zu N=%zu subcube_dim=%zu M=%zu seed=%llu in_scale=%.6g wt_scale=%.6g\n",
+        e.dim, N, e.subcube_dim, M,
         static_cast<unsigned long long>(e.seed),
         static_cast<double>(e.input_scaling),
         static_cast<double>(e.weight_scaling));

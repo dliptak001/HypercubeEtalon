@@ -50,7 +50,7 @@ delta family, different absolute floor.
 
 ## Logged sweep
 
-One run. Train 60000 / test 5000, dim 10, `halvings = 6` (M = 16),
+One run. Train 60000 / test 5000, dim 10, `subcube_dim = 4` (M = 16),
 `in_scale = 0.2`, `wt_scale = 0.2`, PadLowCenter. Exciter 100 epochs,
 bypass 40. Noise seed `0x7E57`.
 
@@ -85,7 +85,7 @@ a region the clean-trained head still understands.
 
 | | HypercubeWTF (logged) | This Exciter sweep |
 |--|----------------------|--------------------|
-| Frozen preprocessor | Reservoir episode, T = 20 | Bank bounce, M = 16 (`halvings = 6`) |
+| Frozen preprocessor | Reservoir episode, T = 20 | Bank bounce, M = 16 (`subcube_dim = 4`) |
 | Head sees | End-of-episode state | Length-N bank after the walk |
 | Pack / dim | PadLowCenter, dim 10 | Same |
 | Train | Clean 60k | Clean 60k |
@@ -107,7 +107,7 @@ and “the Exciter matches the WTF reservoir” is the wrong one.
 
 - A denoise theorem, or a win against Gaussian / Wiener / BM3D.
 - Robustness to blur, occlusion, adversarial, or non-white noise.
-- That every `halvings` / scale pair is a pre-filter. This is one
+- That every `subcube_dim` / scale pair is a pre-filter. This is one
   short-walk recipe.
 - That the bank replaces a good pack on clean data. Clean, it does not.
 - That Etalon replaces WTF. No orbit length T, no delay line, no
@@ -121,7 +121,7 @@ product default promise.
 | Meaning | Where | Value |
 |---------|-------|-------|
 | Cube dim / N | `exciter.dim` | 10 / 1024 |
-| Walk | `exciter.halvings` | 6 (M = 16) |
+| Walk | `exciter.subcube_dim` | 4 (M = 16) |
 | Mixer | `input_scaling` / `weight_scaling` | 0.2 / 0.2 |
 | Weight seed | `exciter.seed` | 38715376369942979 |
 | Head | `readout.*` | 1 layer, 16 ch, max pool, TANH |

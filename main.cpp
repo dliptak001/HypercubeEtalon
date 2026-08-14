@@ -45,6 +45,7 @@ EtalonConfig MakeCfg()
 {
     EtalonConfig cfg;
     cfg.exciter.dim = kDim;
+    cfg.exciter.subcube_dim = kDim - 2;
     cfg.exciter.seed = 1;
     // Strong enough that signed-ramp classes stay separable after ExciteCube.
     cfg.exciter.input_scaling = 1.0f;
@@ -99,6 +100,7 @@ int main()
 
             EtalonConfig d4 = MakeCfg();
             d4.exciter.dim = 4;
+            d4.exciter.subcube_dim = 2;
             d4.readout.num_layers = 1;
             Etalon et4(d4);
             if (et4.Dim() != 4 || et4.N() != 16)
@@ -115,39 +117,40 @@ int main()
             }
 
             EtalonConfig face = MakeCfg();
-            face.exciter.halvings = 1;
+            face.exciter.subcube_dim = kDim - 1;
             Etalon et_s(face);
-            if (et_s.exciter().Halvings() != 1
+            if (et_s.exciter().SubcubeDim() != kDim - 1
                 || et_s.exciter().WalkSize() != kN / 2)
             {
-                std::cerr << "FAIL: halvings=1 walk size\n";
+                std::cerr << "FAIL: half-cube walk size\n";
                 return EXIT_FAILURE;
             }
             auto xs = MakeField(kN, 0, 0);
             et_s.Run(xs);
             if (et_s.LastFeatures().size() != kN || !AllFinite(et_s.LastFeatures()))
             {
-                std::cerr << "FAIL: halvings=1 Run\n";
+                std::cerr << "FAIL: half-cube Run\n";
                 return EXIT_FAILURE;
             }
 
             ExciterConfig bad_s;
             bad_s.dim = 5;
-            bad_s.halvings = 5;
+            bad_s.subcube_dim = 0;
             threw = false;
             try { (void)Exciter::Create(bad_s); }
             catch (const std::invalid_argument&) { threw = true; }
             if (!threw)
             {
-                std::cerr << "FAIL: halvings >= dim should throw\n";
+                std::cerr << "FAIL: subcube_dim == 0 should throw\n";
                 return EXIT_FAILURE;
             }
 
             ExciterConfig d12;
             d12.dim = 12;
+            d12.subcube_dim = 10;
             auto ex12 = Exciter::Create(d12);
             if (ex12->N() != 4096
-                || ex12->WalkSize() != (ex12->N() >> ex12->Halvings()))
+                || ex12->WalkSize() != (size_t{1} << ex12->SubcubeDim()))
             {
                 std::cerr << "FAIL: dim=12 walk sizes\n";
                 return EXIT_FAILURE;
@@ -170,7 +173,7 @@ int main()
             if (et.N() != kN || et.Dim() != kDim
                 || et.NumOutputs() != 2
                 || et.exciter().WalkSize()
-                       != (et.N() >> et.exciter().Halvings()))
+                       != (size_t{1} << et.exciter().SubcubeDim()))
             {
                 std::cerr << "FAIL: size contract N=" << et.N()
                           << " Dim=" << et.Dim()

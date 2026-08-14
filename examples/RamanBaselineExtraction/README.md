@@ -122,7 +122,7 @@ out of scope.
 ## Exciter vs bypass (20 epochs)
 
 One Release `etalon_raman` pair after the `[-1, 1]` map. Same 1000 / 100
-prefix, dim 11, `halvings = 7` (`M = 16`), 20 readout epochs, activation
+prefix, dim 11, `subcube_dim = 4` (`M = 16`), 20 readout epochs, activation
 NONE. The only change is `kRunBypass`:
 
 ```text

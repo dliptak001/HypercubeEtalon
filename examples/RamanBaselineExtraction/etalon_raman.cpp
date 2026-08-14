@@ -1,6 +1,7 @@
 #include "BaselineExtractor.h"
 #include "RamanDataset.h"
 #include "RamanScore.h"
+#include "print_config.h"
 
 #include <chrono>
 #include <cmath>
@@ -62,11 +63,10 @@ int main()
         s_ex = &ex;
         s_train = &train;
 
-        std::printf("etalon_raman: train=%zu val=%zu N=%zu bypass=%s skip_train=%s\n",
-                    train.count, test.count, ex.N(),
-                    kRunBypass ? "true" : "false",
+        std::printf("etalon_raman: train=%zu val=%zu skip_train=%s\n",
+                    train.count, test.count,
                     kSkipTrain ? "true" : "false");
-        std::fflush(stdout);
+        etalon_ex::PrintEtalonHeader("etalon_raman", ex.etalon());
 
         if (kSkipTrain)
         {

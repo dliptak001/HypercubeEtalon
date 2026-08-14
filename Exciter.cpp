@@ -13,21 +13,21 @@
 Exciter::Exciter(const ExciterConfig& cfg)
     : rng_seed_(cfg.seed),
       dim_(cfg.dim),
-      halvings_(cfg.halvings),
+      subcube_dim_(cfg.subcube_dim),
       input_scaling_(cfg.input_scaling),
       weight_scaling_(cfg.weight_scaling)
 {
     if (dim_ < 4 || dim_ > 12)
         throw std::invalid_argument("Exciter: dim must be in 4 <= dim <= 12");
-    if (halvings_ >= dim_)
+    if (subcube_dim_ < 1 || subcube_dim_ > dim_)
     {
         throw std::invalid_argument(
-            "Exciter: halvings must be in 0 <= halvings < dim "
+            "Exciter: subcube_dim must be in 1 <= subcube_dim <= dim "
             "(walk at least 2 corners)");
     }
 
     n_ = 1ULL << dim_;
-    m_ = n_ >> halvings_;
+    m_ = 1ULL << subcube_dim_;
 
     state_.assign(n_, 0.0f);
     output_.assign(n_, 0.0f);
@@ -107,6 +107,6 @@ ExciterConfig Exciter::GetConfig() const
     cfg.seed = rng_seed_;
     cfg.input_scaling = input_scaling_;
     cfg.weight_scaling = weight_scaling_;
-    cfg.halvings = halvings_;
+    cfg.subcube_dim = subcube_dim_;
     return cfg;
 }

@@ -10,7 +10,7 @@ struct ExciterConfig
 {
     /// Hypercube dimension; neuron count N = 2^dim. Valid range **[4, 12]**:
     /// 4 is the smallest cube with a useful neighbor star; 12 is the cost cap
-    /// (N = 4096). Default walk is a half-cube (`halvings = 1`).
+    /// (N = 4096).
     size_t dim = 8;
 
     /// Master RNG seed for neighbor weight draws.
@@ -22,12 +22,12 @@ struct ExciterConfig
     /// Scale on neighbor weight draws: U(-1,1) × weight_scaling.
     float weight_scaling = 0.02f;
 
-    /// How many times to halve the bounce: 0 = whole cube, 1 = half
-    /// (default), 2 = quarter, … Pins that many high bits; walk is a
-    /// (dim-halvings)-face through r. Valid range **[0, dim)** so
-    /// M = N >> halvings >= 2. Full star: off-face neighbors stay at
-    /// the scaled input.
-    size_t halvings = 2;
+    /// Dimension of the face each bounce walks. M = 2^subcube_dim corners
+    /// per start. Valid **[1, dim]**. `dim` is the whole cube; `dim-1` is
+    /// a half-cube. Pins the high `dim - subcube_dim` bits; the walk is
+    /// that face through r. Full star: off-face neighbors stay at the
+    /// scaled input. Default 6 with default dim 8 is M = 64.
+    size_t subcube_dim = 6;
 };
 
 /// Hypercube field exciter: fixed neighbor weights, XOR-rotated F/B sweeps.
@@ -55,9 +55,9 @@ public:
     [[nodiscard]] size_t N() const { return n_; }
     [[nodiscard]] size_t Size() const { return n_; } ///< Same as @ref N.
 
-    [[nodiscard]] size_t Halvings() const { return halvings_; }
+    [[nodiscard]] size_t SubcubeDim() const { return subcube_dim_; }
 
-    /// Corners visited per bounce: M = N >> halvings.
+    /// Corners visited per bounce: M = 2^subcube_dim.
     [[nodiscard]] size_t WalkSize() const { return m_; }
 
 private:
@@ -69,8 +69,8 @@ private:
 
     size_t dim_ = 0;
     size_t n_ = 0;
-    size_t halvings_ = 0;
-    size_t m_ = 0; ///< N >> halvings
+    size_t subcube_dim_ = 0;
+    size_t m_ = 0; ///< 2^subcube_dim
 
     std::vector<float> state_;
     std::vector<float> output_;
