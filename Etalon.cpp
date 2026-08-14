@@ -359,6 +359,8 @@ void Etalon::MapFeaturesParallel(const float* fields_flat, size_t count,
                 std::memcpy(w.field.data(), x, n_ * sizeof(float));
                 const float* y = w.ex->ExciteCube(w.field.data());
                 std::memcpy(out, y, n_ * sizeof(float));
+                //for (size_t j = 0; j < n_; ++j)
+                //    out[j] *= 2.0f;
             }
         }
     };
@@ -391,6 +393,8 @@ void Etalon::MapInto(std::span<const float> x, float* dest)
     std::memcpy(field_scratch_.data(), x.data(), n_ * sizeof(float));
     const float* y = exciter_->ExciteCube(field_scratch_.data());
     std::memcpy(dest, y, n_ * sizeof(float));
+    //for (size_t j = 0; j < n_; ++j)
+     //   dest[j] *= 2.0f;
 }
 
 void Etalon::Run(std::span<const float> x)

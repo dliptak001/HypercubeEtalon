@@ -139,3 +139,23 @@ The walk cuts error by about **2.4×**. Train matches val on both arms,
 so this is not a memorized 1000. The C# 1-D CNN typically needs about
 100 epochs to get under RMSE 3 on this score; these numbers are the
 20-epoch cut, not that floor.
+
+---
+
+## Seed
+
+HypercubeEtalon is highly insensitive to the Exciter seed. That is a
+feature: seed is not a tuning parameter.
+
+Three independent `exciter.seed` values, same everything else, full
+split (10000 train / 1000 validation), denormalized val RMSE:
+
+| val RMSE |
+|---------:|
+| 6.155 |
+| 6.147 |
+| 6.184 |
+
+Spread is 0.037 on a mean of 6.162 (about 0.6%). HypercubeESN is quite
+sensitive to the reservoir seed; here there is one less knob to worry
+about.

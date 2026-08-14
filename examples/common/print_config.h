@@ -33,9 +33,9 @@ inline void PrintReadoutConfig(const Readout& ro)
     int layers = (r.num_layers > 0) ? r.num_layers : std::min(d - 2, 2);
     layers = std::max(layers, 1);
 
-    const char* pool = !r.use_pooling
-                           ? "off"
-                           : (r.pool_type == ReadoutPoolType::Avg) ? "avg" : "max";
+    const char* pool_on = r.use_pooling ? "true" : "false";
+    const char* pool_type =
+        (r.pool_type == ReadoutPoolType::Avg) ? "avg" : "max";
 
     const char* act = "tanh";
     switch (r.activation)
@@ -47,9 +47,9 @@ inline void PrintReadoutConfig(const Readout& ro)
     }
 
     std::printf(
-        "readout: dim=%d layers=%d pooling=%s activation=%s "
+        "readout: dim=%d layers=%d use_pooling=%s pool_type=%s activation=%s "
         "epochs=%d batch=%d lr_max=%.6g\n",
-        d, layers, pool, act, r.epochs, r.batch_size,
+        d, layers, pool_on, pool_type, act, r.epochs, r.batch_size,
         static_cast<double>(r.lr_max));
     std::fflush(stdout);
 }
