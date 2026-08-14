@@ -191,3 +191,28 @@ the best weights at the floor — epochs 17–20 only crawled
 This is a different operating point from the seed table above (~6.16).
 That table is seed-to-seed scatter on one setup; this row is the best
 score so far. Weights: `C:\HypercubeEtalon\RamanModels\readout_exciter`.
+
+---
+
+## Architecture locked
+
+The readout is as tuned as it gets. Swept and discarded as no better
+than the current head:
+
+- `num_layers` > 1
+- pooling on vs off
+- `conv_channels` > 1
+- `lr_max` and `lr_min_frac`
+
+Locked readout: 1 layer, 1 channel, pooling off, activation NONE,
+batch 48, `lr_max = 0.003`, `lr_min_frac = 0.05`. More epochs will
+run later; that is a longer fit, not a new architecture.
+
+That head is already pulling what it can from the Exciter field. The
+Exciter knobs (`input_scaling`, `weight_scaling`, `subcube_dim`) are
+optimized too — further scalar tweaks will not move the score
+meaningfully. Architecture and configs are locked.
+
+The remaining lever is the map itself: multiple Exciter rounds, so
+the field gets a better high-dimensional separation of features
+before the same readout sees it. Ideas on that next.
