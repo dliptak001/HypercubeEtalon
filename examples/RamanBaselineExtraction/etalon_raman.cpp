@@ -1,8 +1,10 @@
 #include "BaselineExtractor.h"
 #include "RamanDataset.h"
+#include "RamanNorm.h"
 #include "RamanScore.h"
 #include "print_config.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -16,6 +18,7 @@ static constexpr int kTrainSamples = 10000;
 static constexpr int kTestSamples = 1000;
 static constexpr bool kRunBypass = false;
 static constexpr bool kSkipTrain = false;
+static constexpr bool kReportWalkGain = true;
 
 static constexpr const char* kDataRoot = "C:/HypercubeEtalon/RamanSpectra";
 static constexpr const char* kModelStem = "C:/HypercubeEtalon/RamanModels/readout";
@@ -27,6 +30,84 @@ static void EpochTick(int epoch, double)
 {
     const double train_rmse = RamanRmseOnCollected(*s_ex, *s_train);
     std::printf("etalon_raman: epoch=%d train_rmse=%.6f\n", epoch, train_rmse);
+    std::fflush(stdout);
+}
+
+// Walk-IC probe: rms(y) / rms(x) after input_scaling, over N corners.
+// Uses collected y (no second bank). Delete with kReportWalkGain.
+static void ReportWalkIcGain(const BaselineExtractor& ex, const RamanSplit& split)
+{
+    if (ex.config().bypass_exciter)
+    {
+        std::printf("etalon_raman: walk_ic skipped (bypass)\n");
+        std::fflush(stdout);
+        return;
+    }
+    if (ex.etalon().NumCollected() != split.count)
+    {
+        throw std::logic_error(
+            "walk_ic: collected count must match split");
+    }
+
+    const auto feats = ex.etalon().CollectedFeatures();
+    const float scale = ex.config().exciter.input_scaling;
+    const double inv_n = 1.0 / static_cast<double>(kN);
+
+    double sum_gain = 0.0;
+    double sum_rx = 0.0;
+    double sum_ry = 0.0;
+    double min_gain = 0.0;
+    double max_gain = 0.0;
+    size_t n_ok = 0;
+    std::vector<float> xn(kN);
+
+    for (size_t i = 0; i < split.count; ++i)
+    {
+        const auto nrm = RamanNorm::FromSpectrum(split.Spectrum(i));
+        nrm.Apply(split.Spectrum(i), xn);
+
+        double acc_x = 0.0;
+        double acc_y = 0.0;
+        const float* y = feats.data() + i * kN;
+        for (size_t j = 0; j < kN; ++j)
+        {
+            const double x = static_cast<double>(xn[j]) * static_cast<double>(scale);
+            const double yy = static_cast<double>(y[j]);
+            acc_x += x * x;
+            acc_y += yy * yy;
+        }
+        const double rms_x = std::sqrt(acc_x * inv_n);
+        const double rms_y = std::sqrt(acc_y * inv_n);
+        if (rms_x <= 0.0)
+            continue;
+        const double g = rms_y / rms_x;
+        if (n_ok == 0)
+        {
+            min_gain = g;
+            max_gain = g;
+        }
+        else
+        {
+            min_gain = std::min(min_gain, g);
+            max_gain = std::max(max_gain, g);
+        }
+        sum_gain += g;
+        sum_rx += rms_x;
+        sum_ry += rms_y;
+        ++n_ok;
+    }
+
+    if (n_ok == 0)
+    {
+        std::printf("etalon_raman: walk_ic n=0 (all flat)\n");
+        std::fflush(stdout);
+        return;
+    }
+    const double inv = 1.0 / static_cast<double>(n_ok);
+    std::printf(
+        "etalon_raman: walk_ic n=%zu mean_gain=%.6f min_gain=%.6f max_gain=%.6f "
+        "mean_rms_x=%.6g mean_rms_y=%.6g\n",
+        n_ok, sum_gain * inv, min_gain, max_gain, sum_rx * inv, sum_ry * inv);
     std::fflush(stdout);
 }
 
@@ -98,6 +179,8 @@ int main()
             ex.Collect(train);
             std::printf("etalon_raman: collected\n");
             std::fflush(stdout);
+            if (kReportWalkGain)
+                ReportWalkIcGain(ex, train);
 
             const auto t0 = std::chrono::steady_clock::now();
             ex.Train();

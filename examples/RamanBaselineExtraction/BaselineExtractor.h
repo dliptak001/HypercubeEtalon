@@ -16,6 +16,11 @@ inline EtalonConfig MakeConfig()
     cfg.exciter.dim = kDim;
     cfg.exciter.seed = 3458567978345987ull;
     cfg.exciter.subcube_dim = 4;
+
+    cfg.exciter.input_scaling = 1.0;
+    cfg.exciter.weight_scaling = 0.2;
+
+
     cfg.readout.dim = 0;
     cfg.readout.num_outputs = static_cast<int>(kN);
     cfg.readout.task = ReadoutTask::Regression;
