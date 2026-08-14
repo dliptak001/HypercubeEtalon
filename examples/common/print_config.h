@@ -47,10 +47,10 @@ inline void PrintReadoutConfig(const Readout& ro)
     }
 
     std::printf(
-        "readout: dim=%d layers=%d use_pooling=%s pool_type=%s activation=%s "
-        "epochs=%d batch=%d lr_max=%.6g\n",
-        d, layers, pool_on, pool_type, act, r.epochs, r.batch_size,
-        static_cast<double>(r.lr_max));
+        "readout: dim=%d layers=%d conv_channels=%d use_pooling=%s pool_type=%s "
+        "activation=%s epochs=%d batch=%d lr_max=%.6g\n",
+        d, layers, r.conv_channels, pool_on, pool_type, act, r.epochs,
+        r.batch_size, static_cast<double>(r.lr_max));
     std::fflush(stdout);
 }
 
