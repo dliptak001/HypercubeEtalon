@@ -159,3 +159,35 @@ split (10000 train / 1000 validation), denormalized val RMSE:
 Spread is 0.037 on a mean of 6.162 (about 0.6%). HypercubeESN is quite
 sensitive to the reservoir seed; here there is one less knob to worry
 about.
+
+---
+
+## Best run so far (full split)
+
+Release `etalon_raman`, 10000 train / 1000 validation, Exciter on,
+`collect_threads = 1`. Header as printed:
+
+```text
+exciter: dim=11 N=2048 subcube_dim=4 M=16 seed=3458567978345987
+         in_scale=1 wt_scale=0.15
+readout: dim=11 layers=1 conv_channels=1 use_pooling=false pool_type=max
+         activation=none epochs=20 batch=48 lr_max=0.003
+```
+
+| | |
+|--|--:|
+| train RMSE | 4.728 |
+| val RMSE | 4.713 |
+| best epoch | 20 / 20 |
+| wall time | 738.80 s |
+| walk-IC mean gain | 0.230 (`0.224`–`0.236`) |
+| walk-IC mean rms x / y | 0.545 / 0.125 |
+
+Train matches val. Early Adam wobble through epoch 8 (`7.82` → `6.76`),
+then a clean slide to `4.73`. Last epoch won, so the cosine still had
+the best weights at the floor — epochs 17–20 only crawled
+(`4.85` → `4.80` → `4.74` → `4.73`).
+
+This is a different operating point from the seed table above (~6.16).
+That table is seed-to-seed scatter on one setup; this row is the best
+score so far. Weights: `C:\HypercubeEtalon\RamanModels\readout_exciter`.

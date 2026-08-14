@@ -15,7 +15,7 @@ inline EtalonConfig MakeConfig()
     EtalonConfig cfg;
     cfg.exciter.dim = kDim;
     cfg.exciter.seed = 3458567978345987ull;
-    cfg.exciter.subcube_dim = 4;
+    cfg.exciter.subcube_dim = 3;//4;
     cfg.exciter.input_scaling = 1.0;
     cfg.exciter.weight_scaling = 0.15;
 
@@ -25,11 +25,11 @@ inline EtalonConfig MakeConfig()
     cfg.readout.epochs = 20;
     cfg.readout.activation = ReadoutActivation::NONE;
     cfg.readout.batch_size = 48;
-    cfg.readout.conv_channels = 4;
+    cfg.readout.conv_channels = 1;
     cfg.readout.channel_growth = 1;
     cfg.readout.num_layers = 1;
-    cfg.readout.use_pooling = true;
-    cfg.readout.lr_max = 0.001f;
+    cfg.readout.use_pooling = false;
+    cfg.readout.lr_max = 0.003f;//0.001f;
     cfg.readout.lr_min_frac = 0.01f;
 
     cfg.collect_threads = 1;
