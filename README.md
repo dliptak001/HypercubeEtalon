@@ -17,10 +17,6 @@ Each corner keeps `dim` fixed random weights, one per edge, drawn once at
 construction from U(−1, 1) and scaled by `weight_scaling`. Those weights
 never learn. Only the head does.
 
-`dim` is small. Four is the tiniest cube with a useful star of neighbors.
-Twelve is the cost cap (`N = 4096`). Five (`N = 32`) is the usual starting
-point: cheap, and roomy enough for the default pooled head. The default
-walk is a `subcube_dim = 6` face on the default dim-8 cube (`M = 64`).
 
 ## A bounce
 
@@ -76,57 +72,10 @@ step off the face onto corners this walk never updates. Those sites stay
 at the original input — a frozen wall. A face that misses the packed
 picture still sees it through that wall.
 
-Parallelizing the N independent starts is a later job.
 
 ## Using it
 
 `Etalon` is the front door: frozen Exciter, trainable head.
-
-```text
-EtalonConfig cfg;
-cfg.exciter.dim = 5;                 // N = 32
-cfg.exciter.subcube_dim = 4;         // M = 16; dim = whole cube; dim-1 = half
-cfg.exciter.input_scaling = 1.0f;
-cfg.exciter.weight_scaling = 0.5f;
-cfg.readout.dim = 0;                 // auto: same as the Exciter
-cfg.readout.num_outputs = 2;
-cfg.readout.task = ReadoutTask::Classification;
-
-Etalon et(cfg);
-et.Collect(field, class_label);
-et.TrainOnCollected();
-int cls = et.PredictClass(field);
-```
-
-```text
-x[N]  →  Exciter  →  y[N]  →  Readout
-          (or skip: y = x)
-```
-
-| Call | What it does |
-|------|----------------|
-| `Run` | Map one field. Updates `LastFeatures`. |
-| `Collect` / `CollectBatch` | Map and keep the sample. `CollectBatch` fans independent maps across `collect_threads` workers (0 = auto). |
-| `TrainOnCollected` | Fit the head on what you collected. |
-| `Predict` / `PredictClass` | Fresh map, then the head. |
-| `AccuracyOnCollected` / `R2OnCollected` | Score the **training** buffer. |
-| `Accuracy` / `R2` | Fresh map and score a set you pass in (test). |
-| `ClearCollected` | Drop the training buffer. |
-
-Your field is never overwritten. `bypass_exciter` skips the walk and
-hands the raw field to the head (the fair baseline).
-
-`AccuracyOnCollected` is not a test number. Use `Accuracy` on held-out
-fields for that.
-
-The head itself is `et.readout()`. Save and load, weight blobs, architecture
-summary, and “has this been trained?” all live there — not on `Etalon`.
-
-```text
-et.readout().SaveHcnnModel("out/readout");
-et.readout().LoadHcnnModel("out/readout");
-et.readout().IsTrained();
-```
 
 You can use `Exciter` and `Readout` without `Etalon`. `ExciteCube` scales
 its buffer in place and returns a pointer that dies on the next call.
@@ -134,22 +83,4 @@ its buffer in place and returns a pointer that dies on the next call.
 `SaveHcnnModel` over the unversioned `Weights` blob.
 
 The Readout is a thin HypercubeCNN wrapper so this repo can train a head.
-It is frozen: no new learning-rate schedules, checkpoint schemes, or
-holdout rules. New work belongs on the Exciter or on `Etalon`. A
-different train loop should call HypercubeCNN itself.
 
-This is not HypercubeWTF. No orbit length `T`, no delay packing, no
-episode initial condition. One map is one bank of bounces. Bulk collect
-fans independent maps across workers (`collect_threads`). Features are
-always length N.
-
-## Examples
-
-[`examples/`](examples/README.md) has two programs that run the Exciter
-on a held-out set. Set `kRunBypass` in a demo if you want the skip-the-walk
-check.
-
-- `etalon_synth` — six made-up classes, no data files
-- `etalon_mnist` — packed digits, from a fixed folder (see that README)
-
-Build **Release**, then run the binary you care about.
