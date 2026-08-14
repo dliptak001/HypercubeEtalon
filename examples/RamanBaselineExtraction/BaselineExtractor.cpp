@@ -3,7 +3,9 @@
 #include "RamanNorm.h"
 
 #include <cmath>
+#include <filesystem>
 #include <stdexcept>
+#include <system_error>
 #include <vector>
 
 BaselineExtractor::BaselineExtractor()
@@ -73,4 +75,51 @@ void BaselineExtractor::Predict(std::span<const float> spectrum,
     etalon_.Run(xn);
     etalon_.readout().PredictRaw(etalon_.LastFeatures().data(), yn.data());
     nrm.Invert(yn, baseline);
+}
+
+void BaselineExtractor::SaveReadout(const std::string& path_stem) const
+{
+    if (path_stem.empty())
+    {
+        throw std::invalid_argument(
+            "BaselineExtractor::SaveReadout: empty path_stem");
+    }
+    if (!etalon_.readout().IsTrained())
+    {
+        throw std::logic_error(
+            "BaselineExtractor::SaveReadout: readout is not trained");
+    }
+
+    namespace fs = std::filesystem;
+    const fs::path stem(path_stem);
+    if (stem.has_parent_path())
+        fs::create_directories(stem.parent_path());
+
+    // Write beside the destination, then replace. A crash mid-write must not
+    // truncate a previous good checkpoint. Windows rename will not overwrite.
+    const std::string tmp = stem.string() + ".writing";
+    etalon_.readout().SaveHcnnModel(tmp);
+
+    const fs::path src_hcnw = tmp + ".hcnw";
+    const fs::path src_arch = tmp + ".arch.json";
+    const fs::path dst_hcnw = stem.string() + ".hcnw";
+    const fs::path dst_arch = stem.string() + ".arch.json";
+
+    auto replace_file = [](const fs::path& src, const fs::path& dst) {
+        std::error_code ec;
+        fs::remove(dst, ec);
+        fs::rename(src, dst);
+    };
+    replace_file(src_hcnw, dst_hcnw);
+    replace_file(src_arch, dst_arch);
+}
+
+void BaselineExtractor::LoadReadout(const std::string& path_stem)
+{
+    if (path_stem.empty())
+    {
+        throw std::invalid_argument(
+            "BaselineExtractor::LoadReadout: empty path_stem");
+    }
+    etalon_.readout().LoadHcnnModel(path_stem, ReadoutLoadMode::Eval);
 }
