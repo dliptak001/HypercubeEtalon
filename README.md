@@ -29,7 +29,7 @@ required for the CNN.
 
 ## The Etalon
 
-I suspect that the hypercube will someday be recognized as the most
+I now suspect that the hypercube will someday be recognized as the most
 natural (least contrived) and at the same time the most powerful neural
 network substrate that can possibly be realized.
 
@@ -80,6 +80,7 @@ The loop repeats until every vertex (every etalon) has been processed,
 which fully populates the output buffer.
 
 Runnable programs live under [`examples/`](examples/README.md).
+
 `RamanBaselineExtraction` is still early, and this repository does not
 ship the spectra (about 1 GB). That example will evolve quickly over the
 next several weeks. 
