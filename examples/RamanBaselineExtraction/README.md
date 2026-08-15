@@ -1,18 +1,25 @@
 # RamanBaselineExtraction
 
-Regression example: take a Raman spectrum and estimate its **baseline**.
+A Raman spectrum is a line of 2048 amplitudes: sharp molecular peaks
+sitting on a slow, unwanted background. This example asks the Etalon
+to estimate that background.
 
-The cube is **dim 11** (`N = 2048`). Input and readout target are the same
-length. The primary class is `BaselineExtractor`.
+The cube is the same length as the spectrum (`N = 2048`, dim 11), so
+each bin is already one vertex. The wrapper class is
+`BaselineExtractor`.
 
-The example reads the dataset **in place** from
-`C:\MLPlayground\Datasets\data`. It does not copy files into this repo or
-into `C:\HypercubeEtalon\data`.
+The program reads the dataset **in place** from
+`C:\HypercubeEtalon\RamanSpectra`. The spectra are about 1 GB and are
+not in this repository. They are not the MNIST files under
+`C:\HypercubeEtalon\data`.
 
 `kTrainSamples` / `kTestSamples` are **overall** prefix counts, numeric
 index order (`0`, `1`, `2`, …), not lexical filename order. `0` means the
 whole split (10000 train / 1000 validation). A small prefix (`100` / `50`)
 is the short demo.
+
+Shipped `MakeConfig()` uses `subcube_dim = 5` (`M = 32`). The score
+tables below were logged at `subcube_dim = 4` (`M = 16`).
 
 ---
 
@@ -24,9 +31,9 @@ is the short demo.
 | Target / output | Baseline estimate, 2048 amplitudes |
 | Unused for now | Peak files (`X.peaks.txt`) |
 
-The x-axis used here is the sample index **0 … 2047**. Each bin is one cube
-corner. Files on disk also ship a shared `xaxis.txt` of real wavenumbers; this
-example does not use those values.
+The x-axis used here is the sample index **0 … 2047**. Each bin is one
+vertex. Files on disk also ship a shared `xaxis.txt` of real
+wavenumbers; this example does not use those values.
 
 ---
 
@@ -35,7 +42,7 @@ example does not use those values.
 Fixed root (read in place, not copied):
 
 ```text
-C:\MLPlayground\Datasets\data\
+C:\HypercubeEtalon\RamanSpectra\
   Training\
   Validation\
 ```
@@ -67,21 +74,17 @@ in their own folders; they are different spectra.
 - 2048 comma-separated ASCII floating-point amplitudes.
 - Same count in `.data`, `.label`, `.peaks`, and `xaxis.txt`.
 
-Checked: `Training/0`, `Training/9999`, `Validation/0`, `Validation/999`,
-and both `xaxis.txt` files are all length 2048. Training and validation
-`xaxis.txt` match (first ≈ 120.72, last ≈ 796.94).
-
 ---
 
 ## Scale
 
-Same per-spectrum min/max as the C# trainer (from the **input**, never
-the label), then shifted from their `[0, 1]` to **[-1, 1]**:
+Per-spectrum min/max from the **input**, never the label, mapped to
+**[-1, 1]**:
 
 ```text
 range = max - min
-u     = (x - min) / range  // C# [0, 1]
-norm  = 2 * u - 1          // here [-1, 1]
+u     = (x - min) / range
+norm  = 2 * u - 1
 x     = (norm + 1) * 0.5 * range + min
 
 If the spectrum is flat, range is 0, norm is 0, and denorm is min.
@@ -111,8 +114,7 @@ RMSE    = sqrt( mean( err[i]^2 ) )
 On a split (train prefix or validation prefix), take the mean of those
 per-spectrum MSEs, then sqrt — same as RMSE over every bin in the split.
 
-That is the number this example reports — the same denormalized RMS as
-the C# trainer (`ComputeRMS` / epoch callback). Each readout epoch prints
+That is the number this example reports. Each readout epoch prints
 train `train_rmse`. After fit, the same score is printed on the train
 prefix and the validation prefix. Peaks and percent-of-peak error are
 out of scope.
@@ -121,14 +123,11 @@ out of scope.
 
 ## Exciter vs bypass (20 epochs)
 
-One Release `etalon_raman` pair after the `[-1, 1]` map. Same 1000 / 100
-prefix, dim 11, `subcube_dim = 4` (`M = 16`), 20 readout epochs, activation
-NONE. The only change is `kRunBypass`:
-
-```text
-bypass=false  — normalized field through the Exciter, then the head
-bypass=true   — normalized field straight to the head
-```
+Two Release runs, same 1000 training spectra and 100 validation
+spectra. Both used the `[-1, 1]` map, twenty readout epochs, and no
+activation. The walk was the shorter one logged above
+(`subcube_dim = 4`). The only difference was whether the field went
+through the Exciter or straight to the head.
 
 | Path | train RMSE | val RMSE |
 |------|-----------:|---------:|
@@ -136,9 +135,8 @@ bypass=true   — normalized field straight to the head
 | Bypass | 106.832 | 101.552 |
 
 The walk cuts error by about **2.4×**. Train matches val on both arms,
-so this is not a memorized 1000. The C# 1-D CNN typically needs about
-100 epochs to get under RMSE 3 on this score; these numbers are the
-20-epoch cut, not that floor.
+so this is not a memorized 1000. These numbers are the 20-epoch cut,
+not a claimed floor.
 
 ---
 
@@ -156,7 +154,7 @@ split (10000 train / 1000 validation), denormalized val RMSE:
 | 6.147 |
 | 6.184 |
 
-Spread is 0.037 on a mean of 6.162 (about 0.6%). HypercubeESN is quite
+Spread is 0.037 on a mean of 6.162 (about 0.6%). HypercubeWTF is quite
 sensitive to the reservoir seed; here there is one less knob to worry
 about.
 
@@ -164,8 +162,7 @@ about.
 
 ## Best run so far (full split)
 
-Release `etalon_raman`, 10000 train / 1000 validation, Exciter on,
-`collect_threads = 1`. Header as printed:
+Release `etalon_raman`, 10000 train / 1000 validation. Header as printed:
 
 ```text
 exciter: dim=11 N=2048 subcube_dim=4 M=16 seed=3458567978345987
@@ -180,8 +177,6 @@ readout: dim=11 layers=1 conv_channels=1 use_pooling=false pool_type=max
 | val RMSE | 4.713 |
 | best epoch | 20 / 20 |
 | wall time | 738.80 s |
-| walk-IC mean gain | 0.230 (`0.224`–`0.236`) |
-| walk-IC mean rms x / y | 0.545 / 0.125 |
 
 Train matches val. Early Adam wobble through epoch 8 (`7.82` → `6.76`),
 then a clean slide to `4.73`. Last epoch won, so the cosine still had
@@ -190,7 +185,7 @@ the best weights at the floor — epochs 17–20 only crawled
 
 This is a different operating point from the seed table above (~6.16).
 That table is seed-to-seed scatter on one setup; this row is the best
-score so far. Weights: `C:\HypercubeEtalon\RamanModels\readout_exciter`.
+score so far.
 
 ---
 
