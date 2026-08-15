@@ -22,7 +22,7 @@ struct ExciterConfig
     /// Scale on neighbor weight draws: U(-1,1) × weight_scaling.
     float weight_scaling = 0.02f;
 
-    /// Dimension of the face each bounce walks. M = 2^subcube_dim corners
+    /// Dimension of the face each reflection walks. M = 2^subcube_dim corners
     /// per start. Valid **[1, dim]**. `dim` is the whole cube; `dim-1` is
     /// a half-cube. Pins the high `dim - subcube_dim` bits; the walk is
     /// that face through r. Full star: off-face neighbors stay at the
@@ -57,7 +57,7 @@ public:
 
     [[nodiscard]] size_t SubcubeDim() const { return subcube_dim_; }
 
-    /// Corners visited per bounce: M = 2^subcube_dim.
+    /// Corners visited per reflection: M = 2^subcube_dim.
     [[nodiscard]] size_t WalkSize() const { return m_; }
 
 private:

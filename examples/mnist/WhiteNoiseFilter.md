@@ -11,7 +11,7 @@ Short answer: **yes, in the same relative way.** Clean data is a near
 tie (bypass a hair ahead). Under strong test AWGN the Exciter holds
 about eight to nine points that bypass loses. That is the WTF headline
 shape. It is **not** a claim that Exciter matches WTF’s absolute
-accuracy, or that a bounce is an orbit.
+accuracy, or that a reflection is an orbit.
 
 MNIST is only the evaluation vehicle. The pipeline under test is pack →
 optional Exciter bank → HypercubeCNN on a length-N field.
@@ -23,7 +23,7 @@ the head sees:
 
 ```text
 Bypass   — packed field (no walk)
-Exciter  — bank after the frozen XOR F/B bounce
+Exciter  — bank after the frozen XOR F/B reflection
 ```
 
 Train stays clean. Test noise is i.i.d. N(0, σ) on every packed vertex
@@ -85,7 +85,7 @@ a region the clean-trained head still understands.
 
 | | HypercubeWTF (logged) | This Exciter sweep |
 |--|----------------------|--------------------|
-| Frozen preprocessor | Reservoir episode, T = 20 | Bank bounce, M = 16 (`subcube_dim = 4`) |
+| Frozen preprocessor | Reservoir episode, T = 20 | Bank reflection, M = 16 (`subcube_dim = 4`) |
 | Head sees | End-of-episode state | Length-N bank after the walk |
 | Pack / dim | PadLowCenter, dim 10 | Same |
 | Train | Clean 60k | Clean 60k |
@@ -111,7 +111,7 @@ and “the Exciter matches the WTF reservoir” is the wrong one.
   short-walk recipe.
 - That the bank replaces a good pack on clean data. Clean, it does not.
 - That Etalon replaces WTF. No orbit length T, no delay line, no
-  episode IC. One map is one bank of bounces.
+  episode IC. One map is one bank of reflections.
 
 ## Appendix — recipe for the table above
 

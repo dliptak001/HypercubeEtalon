@@ -84,7 +84,7 @@ float Exciter::ExciteRotation(const size_t r)
 {
     const auto m = static_cast<int64_t>(m_);
 
-    // Forward: v = 0 .. M-1 (ends at the face antipode of r).
+    // Forward: v = 0 .. M-1 (ends at the face antipodal reflector of r).
     for (int64_t v = 0; v < m; ++v)
         UpdateSite(static_cast<size_t>(v) ^ r);
 
