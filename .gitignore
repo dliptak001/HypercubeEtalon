@@ -62,6 +62,10 @@ compile_commands.json
 # Local build/run-box helpers (not product)
 scripts/
 
+# Editor / session dirs
+.idea/
+.ai/
+
 # vcpkg
 vcpkg_installed/
 

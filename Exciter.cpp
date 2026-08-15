@@ -23,7 +23,7 @@ Exciter::Exciter(const ExciterConfig& cfg)
     {
         throw std::invalid_argument(
             "Exciter: subcube_dim must be in 1 <= subcube_dim <= dim "
-            "(walk at least 2 corners)");
+            "(walk at least 2 vertices)");
     }
 
     n_ = 1ULL << dim_;

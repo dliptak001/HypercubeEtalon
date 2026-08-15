@@ -33,8 +33,8 @@ static void EpochTick(int epoch, double)
     std::fflush(stdout);
 }
 
-// Walk-IC probe: rms(y) / rms(x) after input_scaling, over N corners.
-// Uses collected y (no second bank). Delete with kReportWalkGain.
+// Walk-IC probe: rms(y) / rms(x) after input_scaling, over N vertices.
+// Uses collected y (no second map). Delete with kReportWalkGain.
 static void ReportWalkIcGain(const BaselineExtractor& ex, const RamanSplit& split)
 {
     if (ex.config().bypass_exciter)

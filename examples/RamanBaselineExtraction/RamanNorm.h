@@ -4,8 +4,7 @@
 #include <span>
 #include <stdexcept>
 
-/// Per-spectrum min/max of the **input**, same affine map as the C# trainer,
-/// then shifted from [0, 1] to [-1, 1]:
+/// Per-spectrum min/max of the **input**, mapped to [-1, 1]:
 ///   u    = (x - min) / range
 ///   norm = 2 * u - 1
 ///   x    = (norm + 1) * 0.5 * range + min

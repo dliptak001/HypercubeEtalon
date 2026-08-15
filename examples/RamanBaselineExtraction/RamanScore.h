@@ -9,8 +9,8 @@
 #include <stdexcept>
 #include <vector>
 
-/// Per-spectrum MSE of denormalized pred vs raw label. Same reduction as
-/// MLPlayground ComputeRMS: split RMSE = sqrt(mean of these).
+/// Per-spectrum MSE of denormalized pred vs raw label.
+/// Split RMSE = sqrt(mean of these).
 inline double RamanPatternMse(std::span<const float> pred,
                               std::span<const float> label)
 {
@@ -47,7 +47,7 @@ inline double RamanRmse(BaselineExtractor& ex, const RamanSplit& split)
 }
 
 /// Train-set RMS on the already-collected features (no second Exciter pass).
-/// Same denorm + RMSE as @ref RamanRmse and C# ComputeRMS.
+/// Same denorm + RMSE as @ref RamanRmse.
 inline double RamanRmseOnCollected(const BaselineExtractor& ex,
                                    const RamanSplit& split)
 {
