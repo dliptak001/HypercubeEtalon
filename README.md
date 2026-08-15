@@ -21,7 +21,7 @@ The point of this experiment is to see if a preprocessing stage in
 front of HypercubeCNN outperforms HypercubeCNN by itself. HypercubeWTF
 has the same goal; it just does it a slightly different way, using a
 **reservoir** with synthetic time, whereas here the preprocessor is an
-**etalon**. The quest is a hypercube preprocessor effective enough that
+**etalon**. The aim is a hypercube preprocessor effective enough that
 the readout can be a single layer with a single convolutional channel
 (weird, I know) and no pooling. Then training is fast, the memory
 footprint is small, and little to no architectural engineering is
