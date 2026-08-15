@@ -61,8 +61,7 @@ to estimate that background. The cube is the same length as the
 spectrum (`N = 2048`, dim 11), so each bin is already one address —
 there is nothing to pack.
 
-This example is still early. The spectra are about 1 GB and are not
-yet in the repository.
+The spectra are about 1 GB and are not in the repository.
 
 Task write-up: [`RamanBaselineExtraction/README.md`](RamanBaselineExtraction/README.md).
 

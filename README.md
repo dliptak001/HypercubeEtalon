@@ -1,4 +1,4 @@
-# HypercubeEtalon
+# Hypercube Etalon
 
 HypercubeEtalon processes spatial data of the kind presented to a CNN.
 It is built from three core classes.
@@ -27,20 +27,21 @@ the readout can be a single layer with a single convolutional channel
 footprint is small, and little to no architectural engineering is
 required for the CNN.
 
-## Raman baseline extraction
+## Raman baseline extraction (a vibrational spectroscopy application)
 
-The first real-world test is Raman: recover the slow fluorescence
-under sharp molecular peaks, and do not lift the baseline into the
-bands. Polynomials, asymmetric least squares, and ordinary
-convolutional nets lose that argument under a dense peak cluster.
-The Etalon does not.
+The first real-world test is Raman spectra: recover the slow
+fluorescence under sharp molecular peaks, and do not lift the
+baseline into the bands. Polynomials, asymmetric least squares, and
+ordinary convolutional nets lose that argument under a dense peak
+cluster. The Etalon does not.
 
-One readout layer, one convolutional channel, no pooling, 100 epochs
-on 10,000 synthetic LiCoO₂ (lithium cobalt oxide, LCO) training spectra.
-Validation RMSE is 4.59 on 1,000 held-out spectra. Grey is the
-spectrum, red is the ground-truth baseline, blue is the extract. Blue
-stays on the fluorescence through the 480–530 stacks on both the
-training overlay and the held-out validation overlay.
+One HypercubeCNN readout layer, one convolutional channel, no
+pooling, 100 epochs on 10,000 synthetic LiCoO₂ (lithium cobalt
+oxide, LCO) training spectra. Validation RMSE is 4.59 on 1,000
+held-out spectra. Grey is the spectrum, red is the ground-truth
+baseline, blue is the extract. Blue stays on the fluorescence
+through the 480–530 stacks on both the training overlay and the
+held-out validation overlay.
 
 ![Training extract, spectra 3811 through 3814](examples/RamanBaselineExtraction/extracted_baselines_training.png)
 
@@ -48,8 +49,8 @@ training overlay and the held-out validation overlay.
 
 The run log is
 [`etalon_raman_ep100_LCO.txt`](examples/RamanBaselineExtraction/etalon_raman_ep100_LCO.txt).
-How to reproduce the overlay, and the rest of the task write-up, live
-in [`examples/RamanBaselineExtraction/`](examples/RamanBaselineExtraction/README.md).
+The rest of the write-up is
+[`examples/RamanBaselineExtraction/`](examples/RamanBaselineExtraction/README.md).
 
 ## The Etalon
 

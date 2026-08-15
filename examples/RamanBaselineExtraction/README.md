@@ -1,4 +1,4 @@
-# RamanBaselineExtraction
+# Raman Baseline Extraction
 
 A Raman spectrum is an array of intensity values: sharp molecular
 peaks sitting on a slow fluorescence background. The task is to
@@ -13,16 +13,15 @@ HypercubeEtalon recovers the fluorescence through the peak clusters.
 
 The overlays below come from a hundred-epoch fit on synthetic LiCoO₂
 (lithium cobalt oxide, LCO) spectra. Ten thousand spectra for
-training, a thousand held out. The readout that drew the blue curve
-is one layer, one channel, no pooling. The run log is
-[`etalon_raman_ep100_LCO.txt`](etalon_raman_ep100_LCO.txt).
+training, a thousand held out. The HypercubeCNN readout that drew
+the blue curve is one layer, one channel, no pooling.
 
 Grey is the raw spectrum, red is the true baseline, blue is the
 extract. They agree to a few counts (training RMSE 4.48,
 validation 4.59) while the fluorescence itself swings by hundreds.
-Look under the 480–530 stacks: the extract stays on the background
-instead of climbing into the bands. The validation panel is the
-same picture. The network did not memorize the training set.
+The extract stays on the background instead of climbing into the
+bands. The validation panel is the same picture. The network did
+not memorize the training set.
 
 ![Training extract, spectra 3811 through 3814](extracted_baselines_training.png)
 
@@ -31,7 +30,7 @@ peaks stay in the spectrum.
 
 ![Held-out validation extract, spectra 581 through 584](extracted_baselines_validation.png)
 
-Validation/581–584. Same fidelity on spectra the readout never fit to.
+Validation/581–584. Same fidelity on spectra the readout never fit.
 
 ---
 
@@ -40,7 +39,7 @@ Validation/581–584. Same fidelity on spectra the readout never fit to.
 Fixed root (read in place, not copied):
 
 ```text
-C:\HypercubeEtalon\RamanSpectra\
+C:\HypercubeEtalon\RamanSpectraLCO\
   Training\
   Validation\
 ```
@@ -132,5 +131,3 @@ split (10000 train / 1000 validation), denormalized val RMSE:
 | 6.184 |
 
 Spread is 0.037 on a mean of 6.162 (about 0.6%).
-
----
