@@ -31,13 +31,12 @@ endif()
 # Match host Release/Debug options on the vendored static library.
 target_link_libraries(HypercubeCNNCore PRIVATE etalon_compile_flags)
 
-# --- Host core: Exciter + Readout + Etalon product façade ---
+# --- Core: Exciter + Readout + Etalon ---
 add_library(HypercubeEtalonCore STATIC
     Exciter.cpp
     Readout.cpp
     Etalon.cpp
 )
-add_library(HypercubeEtalon::Core ALIAS HypercubeEtalonCore)
 
 target_include_directories(HypercubeEtalonCore
     PUBLIC
