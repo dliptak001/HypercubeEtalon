@@ -10,10 +10,10 @@
 
 static constexpr bool kRunBypass = false;
 static constexpr const char* kDataRoot = "C:/HypercubeEtalon/RamanSpectraLCO";
-static constexpr const char* kSplit = "Training";//"Training";
+static constexpr const char* kSplit = "Training"; //"Validation";
 static constexpr const char* kModelStem = "C:/HypercubeEtalon/RamanModels/readout_exciter";
 // Dataset file numbers: Training/0.data.txt, Training/42.data.txt, …
-static constexpr int kIndices[] = {3811,3812,3813,3814};
+static constexpr int kIndices[] = {3811, 3812, 3813, 3814};
 static constexpr const char* kOutDir = "C:/HypercubeEtalon/RamanModels/extracted";
 
 int main()
