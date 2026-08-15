@@ -1,24 +1,40 @@
 # HypercubeEtalon
 
-HypercubeEtalon is designed to process spatial data such as you would present to a CNN, and is built from three core classes.
+HypercubeEtalon processes spatial data of the kind presented to a CNN.
+It is built from three core classes.
 
-The **Etalon** class is a wrapper for the other two and conveniently manages training and prediction.
+The **Etalon** class wraps the other two and manages training and
+prediction.
 
-The other two form a pipeline:  preprocessor -> readout
+The other two form a pipeline: preprocessor → readout.
 
-The **Exciter** class is a preprocessing stage that consumes input patterns, performs nonlinear mixing, and returns a field with the same dimensions of the input.
+The **Exciter** class is a preprocessing stage that consumes input
+patterns, mixes them nonlinearly, and returns a field with the same
+dimensions as the input.
 
-The **Readout** class is a small HypercubeCNN that classifies or regresses that field.
+The **Readout** class is a small HypercubeCNN that classifies or
+regresses that field.
 
 This is not reservoir computing.
 
+The point of this experiment is to see if a preprocessing stage in
+front of HypercubeCNN outperforms HypercubeCNN by itself. HypercubeWTF
+has the same goal; it just does it a slightly different way, using a
+**reservoir** with synthetic time, whereas here the preprocessor is an
+**etalon**. The quest is a hypercube preprocessor effective enough that
+the readout can be a single layer with a single convolutional channel
+(weird, I know) and no pooling. Then training is fast, the memory
+footprint is small, and little to no architectural engineering is
+required for the CNN.
+
 ## The cube
 
-That bit-flip rule is the entire adjacency relation. There is no
-matrix to store and no graph to learn. Each vertex holds `dim` fixed
-random weights, one per outgoing edge, drawn once from U(−1, 1) and
-scaled by `weight_scaling`. Those weights never learn. They are the
-etalon: the reference the rest of the experiment is measured against.
+Vertices are neighbors when their indices differ by a single bit. That
+is the entire adjacency relation. There is no matrix to store and no
+graph to learn. Each vertex holds `dim` fixed random weights, one per
+outgoing edge, drawn once from U(−1, 1) and scaled by `weight_scaling`.
+Those weights never learn. They are the etalon: the reference the rest
+of the experiment is measured against.
 
 ## A reflection (the etalon)
 
