@@ -211,3 +211,44 @@ meaningfully. Architecture and configs are locked.
 The remaining lever is the map itself: multiple Exciter rounds, so
 the field gets a better high-dimensional separation of features
 before the same readout sees it. Ideas on that next.
+
+---
+
+## Extract and plot
+
+`etalon_raman_extract` loads a saved readout and writes denormalized
+baselines for a few dataset indices. `plot_extracted.py` overlays
+spectrum, label, and prediction.
+
+Extract knobs live at the top of `etalon_raman_extract.cpp`
+(`kDataRoot`, `kSplit`, `kModelStem`, `kRunBypass`, `kIndices`,
+`kOutDir`). `kModelStem` is the path without `.hcnw` / `.arch.json`
+(example: `C:/HypercubeEtalon/RamanModels/readout_exciter`).
+`plot_extracted.py` reads split and indices from `manifest.txt`.
+Do not keep a second index list in the plot script.
+
+`MakeConfig()` and `kRunBypass` must match the training run. The
+`.arch.json` sidecar checks the readout stack only. The Exciter is
+rebuilt from `MakeConfig()` (seed, `subcube_dim`, scales) and is not
+in the weight file.
+
+No command-line flags. Knobs are constexpr at the top of
+`etalon_raman_extract.cpp`: bypass, data root, split name, model
+stem, indices, output directory.
+
+`kIndices` are **dataset file numbers** in that split
+(`Training/10.data.txt`, …), not bin positions and not a training
+prefix. Change that list to pick different spectra. The extract
+program writes them into `manifest.txt`; the plot script follows
+the manifest.
+
+When you want the figure:
+
+1. Run `etalon_raman_extract.exe` (same `MakeConfig()` / `kRunBypass`
+   as the weights you trained).
+2. Run `plot_extracted.py` → `extracted_baselines.png`.
+
+The extract program writes
+`C:\HypercubeEtalon\RamanModels\extracted\<idx>.pred.txt`. The plot
+script reads those files and writes `extracted_baselines.png` next to
+itself.

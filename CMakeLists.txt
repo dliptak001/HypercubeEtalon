@@ -83,4 +83,12 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
             examples/RamanBaselineExtraction/BaselineExtractor.cpp
             examples/RamanBaselineExtraction/RamanDataset.cpp
         INCLUDES ${PROJECT_SOURCE_DIR}/examples/RamanBaselineExtraction)
+
+    etalon_add_exe(etalon_raman_extract
+        SOURCES
+            examples/RamanBaselineExtraction/etalon_raman_extract.cpp
+            examples/RamanBaselineExtraction/BaselineExtractor.cpp
+            examples/RamanBaselineExtraction/RamanDataset.cpp
+            examples/RamanBaselineExtraction/RamanExtract.cpp
+        INCLUDES ${PROJECT_SOURCE_DIR}/examples/RamanBaselineExtraction)
 endif()

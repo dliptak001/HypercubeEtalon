@@ -121,3 +121,32 @@ RamanSplit LoadRamanSplit(const std::filesystem::path& dir, size_t prefix)
     }
     return split;
 }
+
+RamanSplit LoadRamanIndices(const std::filesystem::path& dir,
+                            std::span<const int> indices)
+{
+    if (!std::filesystem::is_directory(dir))
+        throw std::runtime_error("not a directory: " + dir.string());
+    if (indices.empty())
+        throw std::invalid_argument("LoadRamanIndices: empty index list");
+
+    RamanSplit split;
+    split.count = indices.size();
+    split.spectra.resize(split.count * kN);
+    split.baselines.resize(split.count * kN);
+
+    for (size_t i = 0; i < indices.size(); ++i)
+    {
+        if (indices[i] < 0)
+        {
+            throw std::invalid_argument(
+                "LoadRamanIndices: index must be >= 0");
+        }
+        const auto stem = std::to_string(indices[i]);
+        ReadSpectrum(dir / (stem + ".data.txt"),
+                     split.spectra.data() + i * kN);
+        ReadSpectrum(dir / (stem + ".label.txt"),
+                     split.baselines.data() + i * kN);
+    }
+    return split;
+}

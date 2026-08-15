@@ -8,6 +8,7 @@ import numpy as np
 ROOT = Path(r"C:\HypercubeEtalon\RamanSpectra")
 SPLIT = ROOT / "Training"
 OUT = Path(__file__).with_name("sample_spectra.png")
+# Dataset file numbers: Training/0.data.txt, Training/42.data.txt, …
 INDICES = (0, 42, 250)
 
 

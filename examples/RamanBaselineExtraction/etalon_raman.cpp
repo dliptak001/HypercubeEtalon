@@ -1,6 +1,7 @@
 #include "BaselineExtractor.h"
 #include "RamanDataset.h"
 #include "RamanNorm.h"
+#include "RamanPaths.h"
 #include "RamanScore.h"
 #include "print_config.h"
 
@@ -18,10 +19,7 @@ static constexpr int kTrainSamples = 10000;
 static constexpr int kTestSamples = 1000;
 static constexpr bool kRunBypass = false;
 static constexpr bool kSkipTrain = false;
-static constexpr bool kReportWalkGain = true;
-
-static constexpr const char* kDataRoot = "C:/HypercubeEtalon/RamanSpectra";
-static constexpr const char* kModelStem = "C:/HypercubeEtalon/RamanModels/readout";
+static constexpr bool kReportWalkGain = false;
 
 static BaselineExtractor* s_ex = nullptr;
 static const RamanSplit* s_train = nullptr;
@@ -122,7 +120,7 @@ int main()
                 "kTrainSamples / kTestSamples must be >= 0 (0 = whole split)");
         }
 
-        const std::filesystem::path root(kDataRoot);
+        const std::filesystem::path root(kRamanDataRoot);
         const auto train = LoadRamanSplit(
             root / "Training", static_cast<size_t>(kTrainSamples));
         const auto test = LoadRamanSplit(
@@ -131,8 +129,7 @@ int main()
         if (train.count == 0)
             throw std::runtime_error("empty training split");
 
-        const std::string stem =
-            std::string(kModelStem) + (kRunBypass ? "_bypass" : "_exciter");
+        const std::string stem = RamanModelStemFor(kRunBypass);
 
         EtalonConfig cfg = MakeConfig();
         cfg.bypass_exciter = kRunBypass;
