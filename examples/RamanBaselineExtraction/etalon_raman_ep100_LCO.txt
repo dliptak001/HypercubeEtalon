@@ -1,0 +1,112 @@
+C:\CLion\HypercubeEtalon\cmake-build-release\etalon_raman.exe
+etalon_raman: train=10000 val=1000 skip_train=false
+etalon_raman: N=2048 dim=11 bypass_exciter=false collect_threads=1
+exciter: dim=11 N=2048 subcube_dim=5 M=32 seed=3458567978345987 in_scale=1 wt_scale=0.15
+readout: dim=11 layers=1 conv_channels=1 use_pooling=false pool_type=max activation=none epochs=100 batch=48 lr_max=0.00
+3
+etalon_raman: hw=32 pool_nt=32
+etalon_raman: collected
+etalon_raman: epoch=1 train_rmse=6.519488
+etalon_raman: epoch=2 train_rmse=6.239111
+etalon_raman: epoch=3 train_rmse=6.629567
+etalon_raman: epoch=4 train_rmse=6.631963
+etalon_raman: epoch=5 train_rmse=6.479783
+etalon_raman: epoch=6 train_rmse=6.855850
+etalon_raman: epoch=7 train_rmse=6.552915
+etalon_raman: epoch=8 train_rmse=6.712591
+etalon_raman: epoch=9 train_rmse=6.472032
+etalon_raman: epoch=10 train_rmse=6.058304
+etalon_raman: epoch=11 train_rmse=6.029385
+etalon_raman: epoch=12 train_rmse=5.759593
+etalon_raman: epoch=13 train_rmse=5.752823
+etalon_raman: epoch=14 train_rmse=5.955942
+etalon_raman: epoch=15 train_rmse=5.712811
+etalon_raman: epoch=16 train_rmse=5.623613
+etalon_raman: epoch=17 train_rmse=5.631063
+etalon_raman: epoch=18 train_rmse=5.514459
+etalon_raman: epoch=19 train_rmse=5.476661
+etalon_raman: epoch=20 train_rmse=5.361821
+etalon_raman: epoch=21 train_rmse=5.389343
+etalon_raman: epoch=22 train_rmse=5.549072
+etalon_raman: epoch=23 train_rmse=5.433029
+etalon_raman: epoch=24 train_rmse=5.420335
+etalon_raman: epoch=25 train_rmse=5.517421
+etalon_raman: epoch=26 train_rmse=5.345050
+etalon_raman: epoch=27 train_rmse=5.514484
+etalon_raman: epoch=28 train_rmse=5.541883
+etalon_raman: epoch=29 train_rmse=5.386427
+etalon_raman: epoch=30 train_rmse=5.297960
+etalon_raman: epoch=31 train_rmse=5.392993
+etalon_raman: epoch=32 train_rmse=5.263124
+etalon_raman: epoch=33 train_rmse=5.513722
+etalon_raman: epoch=34 train_rmse=5.218727
+etalon_raman: epoch=35 train_rmse=5.280605
+etalon_raman: epoch=36 train_rmse=5.236205
+etalon_raman: epoch=37 train_rmse=5.308303
+etalon_raman: epoch=38 train_rmse=5.342869
+etalon_raman: epoch=39 train_rmse=5.220569
+etalon_raman: epoch=40 train_rmse=5.339191
+etalon_raman: epoch=41 train_rmse=5.245857
+etalon_raman: epoch=42 train_rmse=5.289253
+etalon_raman: epoch=43 train_rmse=5.106764
+etalon_raman: epoch=44 train_rmse=5.115982
+etalon_raman: epoch=45 train_rmse=5.201728
+etalon_raman: epoch=46 train_rmse=5.098646
+etalon_raman: epoch=47 train_rmse=5.048861
+etalon_raman: epoch=48 train_rmse=5.070394
+etalon_raman: epoch=49 train_rmse=5.197165
+etalon_raman: epoch=50 train_rmse=5.087778
+etalon_raman: epoch=51 train_rmse=4.936243
+etalon_raman: epoch=52 train_rmse=5.041394
+etalon_raman: epoch=53 train_rmse=5.013437
+etalon_raman: epoch=54 train_rmse=4.967100
+etalon_raman: epoch=55 train_rmse=5.002543
+etalon_raman: epoch=56 train_rmse=4.954455
+etalon_raman: epoch=57 train_rmse=4.987808
+etalon_raman: epoch=58 train_rmse=4.893640
+etalon_raman: epoch=59 train_rmse=4.964045
+etalon_raman: epoch=60 train_rmse=4.877490
+etalon_raman: epoch=61 train_rmse=4.901936
+etalon_raman: epoch=62 train_rmse=4.827246
+etalon_raman: epoch=63 train_rmse=4.833536
+etalon_raman: epoch=64 train_rmse=4.833741
+etalon_raman: epoch=65 train_rmse=4.802407
+etalon_raman: epoch=66 train_rmse=4.802384
+etalon_raman: epoch=67 train_rmse=4.770408
+etalon_raman: epoch=68 train_rmse=4.773120
+etalon_raman: epoch=69 train_rmse=4.831491
+etalon_raman: epoch=70 train_rmse=4.741141
+etalon_raman: epoch=71 train_rmse=4.701674
+etalon_raman: epoch=72 train_rmse=4.720143
+etalon_raman: epoch=73 train_rmse=4.708339
+etalon_raman: epoch=74 train_rmse=4.670701
+etalon_raman: epoch=75 train_rmse=4.653782
+etalon_raman: epoch=76 train_rmse=4.659536
+etalon_raman: epoch=77 train_rmse=4.644824
+etalon_raman: epoch=78 train_rmse=4.631714
+etalon_raman: epoch=79 train_rmse=4.610901
+etalon_raman: epoch=80 train_rmse=4.605575
+etalon_raman: epoch=81 train_rmse=4.609559
+etalon_raman: epoch=82 train_rmse=4.596836
+etalon_raman: epoch=83 train_rmse=4.580067
+etalon_raman: epoch=84 train_rmse=4.572040
+etalon_raman: epoch=85 train_rmse=4.552856
+etalon_raman: epoch=86 train_rmse=4.547517
+etalon_raman: epoch=87 train_rmse=4.555117
+etalon_raman: epoch=88 train_rmse=4.530010
+etalon_raman: epoch=89 train_rmse=4.526384
+etalon_raman: epoch=90 train_rmse=4.519231
+etalon_raman: epoch=91 train_rmse=4.508096
+etalon_raman: epoch=92 train_rmse=4.512764
+etalon_raman: epoch=93 train_rmse=4.506532
+etalon_raman: epoch=94 train_rmse=4.490340
+etalon_raman: epoch=95 train_rmse=4.492297
+etalon_raman: epoch=96 train_rmse=4.486682
+etalon_raman: epoch=97 train_rmse=4.489966
+etalon_raman: epoch=98 train_rmse=4.493688
+etalon_raman: epoch=99 train_rmse=4.475823
+etalon_raman: epoch=100 train_rmse=4.485584
+etalon_raman: trained time=3942.14s best_epoch=99
+etalon_raman: saved C:/HypercubeEtalon/RamanModels/readout_exciter.hcnw C:/HypercubeEtalon/RamanModels/readout_exciter.a
+rch.json
+etalon_raman: train_rmse=4.475823 val_rmse=4.594876
