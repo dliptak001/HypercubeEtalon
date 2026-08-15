@@ -33,12 +33,12 @@ enum class ReadoutLoadMode { Eval, ResumeTrain };
 
 /// @brief Architecture and training settings for the @ref Readout CNN.
 ///
-/// Frozen product knobs — do not add more training-loop policy here.
-/// New work belongs on @ref Exciter / @ref Etalon. For a different train
-/// loop, drive HypercubeCNN directly.
+/// Frozen knobs — do not add more training-loop policy here. New work
+/// belongs on @ref Exciter / @ref Etalon. For a different train loop,
+/// drive HypercubeCNN directly.
 ///
-/// You mainly set @c dim, @c num_outputs, and @c task. The rest is a fixed
-/// HCNN stack + cosine Adam/SGD fit. Trivially copyable.
+/// Set @c dim, @c num_outputs, and @c task first. The rest is a fixed
+/// HCNN stack plus a cosine Adam/SGD fit. Trivially copyable.
 struct ReadoutConfig
 {
     /// Input feature dim: features per sample = 2^dim. Valid range **[3, 30]**
@@ -47,7 +47,7 @@ struct ReadoutConfig
     size_t dim = 0;
     int num_outputs = 1; ///< Classes (classification) or targets (regression).
     ReadoutTask task = ReadoutTask::Regression;
-    int num_layers = 1; ///< Conv(+Pool) layers. Default 1 (typical). 0 = auto: min(dim-2, 2).
+    int num_layers = 1; ///< Conv(+Pool) layers. Default 1. 0 = auto: max(1, min(dim-2, 2)).
 
     /// Append an antipodal pool after each Conv (true = the historical behavior).
     /// The pool pairs each vertex with its bitwise complement, so it mixes *every* bit —
@@ -92,7 +92,7 @@ struct ReadoutConfig
     /// When @c restore_best_epoch is true: fraction of samples held out for
     /// best-metric selection only. Shuffled once with @ref seed (caller
     /// buffers are not mutated). 0 = score the full training set. Clamped
-    /// to [0, 0.5]. Requires at least 2 samples when > 0.
+    /// to [0, 0.5]. If the set has fewer than 2 samples, holdout is skipped.
     float best_epoch_holdout_frac = 0.0f;
 
     /// Optional. Called after each @ref Readout::Train epoch with the 1-based
@@ -103,34 +103,38 @@ struct ReadoutConfig
 
 /// @brief Trainable HypercubeCNN façade: length-N field → task outputs.
 ///
-/// **Scope freeze.** This class is a ported HCNN wrapper so Etalon can
-/// collect → train → predict without including `HCNN.h`. It is not the
-/// product. Do not add new schedules, checkpoint schemes, or train-loop
-/// knobs here. Change the graph via HypercubeCNN; change the map via
-/// @ref Exciter.
+/// A thin HCNN wrapper so @ref Etalon can collect → train → predict
+/// without including `HCNN.h`. Do not add new schedules, checkpoint
+/// schemes, or train-loop knobs here. Change the graph via HypercubeCNN;
+/// change the map via @ref Exciter.
 ///
-/// Typical input is an @ref Exciter bank output (still length N). The same
-/// façade accepts any length-N field (raw pack, excitation, etc.).
+/// Typical input is an @ref Exciter field (still length N). The same
+/// façade accepts any length-N field.
 ///
 /// ## Data path
 /// ```
-///   field[N] ──▶ Embed ──▶ [ Conv + Pool ] × L ──▶ Flatten ──▶ Linear ──▶ output
+///   field[N] ──▶ Embed ──▶ [ Conv (+ Pool) ] × L ──▶ Flatten ──▶ Linear ──▶ output
 /// ```
-/// Stack from @c dim (valid **[3, 30]**): L = min(dim - 2, 2) Conv(+Pool)
-/// stages unless @ref ReadoutConfig::num_layers is set. With pooling on,
-/// `num_layers` must be `<= dim-2`. Prefer @c dim >= 5.
+/// @c dim is valid **[3, 30]**. Default @c num_layers is 1. Zero means
+/// auto: max(1, min(dim - 2, 2)). With pooling on, @c num_layers must
+/// be `<= dim-2`. Prefer @c dim >= 5 so a pooled stack has room.
 ///
 /// ## Lifecycle
-/// Product path: collect fields, @ref Train once, then @ref PredictRaw /
-/// @ref PredictClass. @ref TrainStep* exist for hosts that already interleave
-/// their own loop — they are not an invitation to grow policy here.
-/// Prefer @ref SaveHcnnModel over the unversioned @ref Weights blob.
+/// Collect fields, @ref Train once, then @ref PredictRaw /
+/// @ref PredictClass. @ref TrainStep* exist for hosts that already
+/// interleave their own loop. Prefer @ref SaveHcnnModel over the
+/// unversioned @ref Weights blob.
 ///
 /// @note PIMPL: `HCNN.h` stays out of this header (included only in
 ///       Readout.cpp).
 class Readout
 {
 public:
+    /// @brief Build the CNN immediately from @p cfg.
+    /// @throws std::invalid_argument if @c dim is not in [3, 30],
+    ///         @c num_outputs / @c conv_channels / @c channel_growth are
+    ///         < 1, @c num_layers is < 0, or a pooled stack is deeper
+    ///         than @c dim-2.
     explicit Readout(const ReadoutConfig& cfg);
     ~Readout();
     Readout(Readout&&) noexcept;
@@ -141,13 +145,16 @@ public:
 
     // ----- Batch training -----
 
-    /// @brief Batch-train (regression): @p targets is num_samples * num_outputs
-    /// floats. Continues from current weights — new Readout for a fresh fit.
+    /// @brief Batch-train (regression). @p states is sample-major,
+    /// length @p num_samples * N; @p targets is @p num_samples *
+    /// num_outputs floats. Continues from the current weights — construct
+    /// a new Readout for a fresh fit.
     /// @throws std::logic_error if task is Classification.
     void Train(const float* states, const float* targets, size_t num_samples);
 
-    /// @brief Batch-train (classification): @p class_labels is num_samples ints
-    /// in [0, num_outputs). Continues from current weights.
+    /// @brief Batch-train (classification). @p states is sample-major,
+    /// length @p num_samples * N; @p class_labels is @p num_samples ints
+    /// in [0, num_outputs). Continues from the current weights.
     /// @throws std::logic_error if task is Regression.
     void Train(const float* states, const int* class_labels, size_t num_samples);
 
@@ -184,6 +191,7 @@ public:
     void PredictRaw(const float* state, float* output) const;
 
     /// @brief Predicted class index — the argmax over the classification logits.
+    /// @throws std::logic_error if task is Regression.
     [[nodiscard]] int PredictClass(const float* state) const;
 
     // ----- Evaluation -----
@@ -207,9 +215,11 @@ public:
     [[nodiscard]] size_t NumOutputs() const { return num_outputs_; }
     /// @brief Length of the input field the network expects, N = 2^dim.
     [[nodiscard]] size_t NumFeatures() const { return num_features_; }
-    /// @brief True after a successful @ref Train / @ref TrainStep /
-    /// @ref TrainStepBatch, or after loading weights via @ref SetState /
-    /// @ref LoadHcnnModel. False on a freshly constructed (random-init) net.
+    /// @brief True after @ref Train starts (wrong-task throws first), after
+    /// any @ref TrainStep / @ref TrainStepBatch, or after a non-empty
+    /// @ref SetState / @ref LoadHcnnModel. False on a freshly constructed
+    /// (random-init) net. An empty @ref SetState is ignored and does not
+    /// flip this.
     [[nodiscard]] bool IsTrained() const { return trained_; }
     [[nodiscard]] const ReadoutConfig& GetConfig() const { return config_; }
 
@@ -242,9 +252,9 @@ public:
     static constexpr int kArchSidecarVersion = 1;
 
     /// @brief Write HypercubeCNN-native weights + arch sidecar:
-    ///   `@p path_stem.hcnw`     — versioned HCNW (via `hcnn::save_weights`)
+    ///   `@p path_stem.hcnw`      — versioned HCNW (via `hcnn::save_weights`)
     ///   `@p path_stem.arch.json` — architecture knobs + expanded layer list
-    /// Pass a path **without** extension (e.g. `"out/readout"`).
+    /// A trailing `.hcnw` or `.arch.json` on @p path_stem is stripped.
     void SaveHcnnModel(const std::string& path_stem) const;
 
     /// @brief Load `@p path_stem.hcnw` into this readout after validating
