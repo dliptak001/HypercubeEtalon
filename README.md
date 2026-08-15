@@ -27,6 +27,30 @@ the readout can be a single layer with a single convolutional channel
 footprint is small, and little to no architectural engineering is
 required for the CNN.
 
+## Raman baseline extraction
+
+The first real-world test is Raman: recover the slow fluorescence
+under sharp molecular peaks, and do not lift the baseline into the
+bands. Polynomials, asymmetric least squares, and ordinary
+convolutional nets lose that argument under a dense peak cluster.
+The Etalon does not.
+
+One readout layer, one convolutional channel, no pooling, 100 epochs
+on 10,000 synthetic LiCoO₂ (lithium cobalt oxide, LCO) training spectra.
+Validation RMSE is 4.59 on 1,000 held-out spectra. Grey is the
+spectrum, red is the ground-truth baseline, blue is the extract. Blue
+stays on the fluorescence through the 480–530 stacks on both the
+training overlay and the held-out validation overlay.
+
+![Training extract, spectra 3811 through 3814](examples/RamanBaselineExtraction/extracted_baselines_training.png)
+
+![Held-out validation extract, spectra 581 through 584](examples/RamanBaselineExtraction/extracted_baselines_validation.png)
+
+The run log is
+[`etalon_raman_ep100_LCO.txt`](examples/RamanBaselineExtraction/etalon_raman_ep100_LCO.txt).
+How to reproduce the overlay, and the rest of the task write-up, live
+in [`examples/RamanBaselineExtraction/`](examples/RamanBaselineExtraction/README.md).
+
 ## The Etalon
 
 I now suspect that the hypercube will someday be recognized as the most
@@ -81,6 +105,4 @@ which fully populates the output buffer.
 
 Runnable programs live under [`examples/`](examples/README.md).
 
-`RamanBaselineExtraction` is still early, and this repository does not
-ship the spectra (about 1 GB). That example will evolve quickly over the
-next several weeks. 
+The Raman spectra themselves (about 1 GB) are not in this repository.
