@@ -27,19 +27,33 @@ the readout can be a single layer with a single convolutional channel
 footprint is small, and little to no architectural engineering is
 required for the CNN.
 
-## The cube
+## The Etalon
 
-Vertices are neighbors when their indices differ by a single bit. That
-is the entire adjacency relation. There is no matrix to store and no
-graph to learn. Each vertex holds `dim` fixed random weights, one per
-outgoing edge, drawn once from U(−1, 1) and scaled by `weight_scaling`.
-Those weights never learn. They are the etalon: the reference the rest
-of the experiment is measured against.
+I suspect that the hypercube will someday be recognized as the most natural (least contrived) and at the same time the most powerful neural network substrate that can possibly be realized.
 
-## A reflection (the etalon)
+The **Etalon** construct is just another example of how incredibly elegant solutions can be built on that substrate.
 
-Pick a starting vertex `r`. Copy the input field onto the cube. Then
-walk.
+Etalon is a term borrow from the field of optics.  The physical etalon is a pair of plane parallel highly reflective surfaces (mirrors),
+between which an optical signal propagates and is used for laser resonators, interferometric measurement, and filtering.
+
+On the hypercube, the `etalon` is defined by a pair of vertices.  That pair consists of a vertice, any vertice, and its antipode.
+On any given hypercube there are `N` vertices and therefore there are `N` possible `etalon` realizations on that hypercube.
+In fact, there are far more than `N` since the full hypercube can be subdivided into many subcubes, each of which can represent a set of `etalons`.
+
+So in a sense, a vertice and its antipode form a reflective cavity.  All vertices in between contribute to the evolultion of an input signal.
+How, well it goes something like this.
+
+Pick a starting vertex `r` and its antipode `r'`.  
+
+Copy the input field onto the cube.  This initializes the vertices - all of them. 
+
+Then, starting at `r`, compute the weighted sum with its nearest neighbors, and writes `tanh` of that
+sum into `r`.
+
+Then, incrementing the integer address of `r` by one, move to the next vertice, compute the weighted sum of its nearest neighbors, and write `tanh` of that
+sum into the vertice state.
+
+Continue incrementing the address and updating the vertice states until the address reaches the antipode `r'`.
 
 The walk is a **reflection**. `r` and its antipode — every bit flipped —
 are the two reflectors. The walk leaves `r`, travels to the antipode,
