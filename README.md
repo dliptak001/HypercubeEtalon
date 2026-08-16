@@ -27,6 +27,49 @@ the readout can be a single layer with a single convolutional channel
 footprint is small, and little to no architectural engineering is
 required for the CNN.
 
+---
+
+<p align="center">
+  <strong>HypercubeAI ecosystem</strong><br/>
+</p>
+
+<p align="center">
+  <a href="https://github.com/dliptak001/HypercubeESN"><strong>HypercubeESN</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/dliptak001/HypercubeCNN"><strong>HypercubeCNN</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/dliptak001/HypercubeHopfield"><strong>HypercubeHopfield</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/dliptak001/HypercubeWTF"><strong>HypercubeWTF</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/dliptak001/HypercubeEtalon"><strong>HypercubeEtalon</strong></a>
+</p>
+
+HypercubeEtalon is an experiment in the **HypercubeAI** project — our quest to
+systematically re-implement classical neural architectures on a Boolean
+hypercube topology instead of Euclidean grids or random graphs. The central
+thesis is “topology-native intelligence”: the hypercube’s algebraic structure
+(vertex-transitive symmetry, Hamming geometry, bitwise addressing) can serve
+as a first-class computational substrate.
+
+- **A topology you don’t store** — the graph is specified: connectivity is
+  implicit in the vertex indices; with a seed and a few config scalars the whole
+  reservoir reconstructs mathematically.
+- **Perfect homogeneity** — every vertex has the same degree and the same local
+  world, so local dynamics mean the same thing everywhere — no structural
+  favorites baked in by a random graph.
+- **Cheap navigation** — each neighbor is a few bit operations on the vertex
+  index, not a pointer chase through a stored edge list, so walks stay
+  arithmetic and cache-friendly.
+- **Topology-native pairing** — the readout consumes the reservoir’s output with
+  zero geometric distortion, and the learned kernels exploit the same locality
+  that generated the dynamics. The data never leaves the hypercube it was born
+  on.
+
+Each product in the family is a different architecture on that same foundation.
+
+---
+
 ## Raman baseline extraction (a vibrational spectroscopy application)
 
 The first real-world test is Raman spectra: recover the slow
