@@ -42,30 +42,27 @@ static EtalonConfig MakeBaseConfig()
 {
     EtalonConfig cfg;
 
-    cfg.exciter.dim = 7; // N = 128 — cheap enough for a full A/B
-    cfg.exciter.seed = 1;
+    cfg.exciter.dim = 7;
+    cfg.exciter.seed = 3458567978345987ull;
     cfg.exciter.subcube_dim = 5;
-    // First-guess scales: neighbor star should mix without instantly clipping.
-    // dim=7, |x|<=1 → typical first sum ~ dim * wt * in ≈ 0.5.
-    cfg.exciter.input_scaling = 0.30f;
-    cfg.exciter.weight_scaling = 0.25f;
+    cfg.exciter.input_scaling = 1.0;
+    cfg.exciter.weight_scaling = 0.15;
 
+    cfg.readout.epochs = 200;
     cfg.readout.dim = 0; // auto
     cfg.readout.num_outputs = kNumClasses;
     cfg.readout.task = ReadoutTask::Classification;
-    cfg.readout.num_layers = 1;
-    cfg.readout.use_pooling = true;
-    cfg.readout.conv_channels = 16;
+    cfg.readout.activation = ReadoutActivation::NONE;
+    cfg.readout.batch_size = 48;
+    cfg.readout.conv_channels = 8;
     cfg.readout.channel_growth = 1;
-    cfg.readout.activation = ReadoutActivation::TANH;
-    cfg.readout.epochs = 80;
-    cfg.readout.batch_size = 32;
-    cfg.readout.lr_max = 0.0015f;
-    cfg.readout.lr_min_frac = 0.01f;
-    cfg.readout.num_threads = 1; // pin for repeatable demo logs
+    cfg.readout.num_layers = 1;
+    cfg.readout.use_pooling = false;
+    cfg.readout.lr_max = 0.003;
+    cfg.readout.lr_min_frac = 0.04;
     cfg.readout.restore_best_epoch = true;
-    cfg.readout.best_epoch_holdout_frac = 0.1f;
-    cfg.readout.seed = 3;
+
+    cfg.collect_threads = 1;
 
     return cfg;
 }
@@ -87,10 +84,10 @@ static uint32_t Mix32(uint32_t x)
 static float DetNoise(int label, int rep, size_t i, float amp)
 {
     const uint32_t h = Mix32(static_cast<uint32_t>(label) * 0x9E3779B9u
-                             ^ static_cast<uint32_t>(rep) * 0x85EBCA6Bu
-                             ^ static_cast<uint32_t>(i));
+        ^ static_cast<uint32_t>(rep) * 0x85EBCA6Bu
+        ^ static_cast<uint32_t>(i));
     const float u = (static_cast<float>(h & 0xFFFFFFu) / static_cast<float>(0xFFFFFFu)) * 2.0f
-                    - 1.0f;
+        - 1.0f;
     return amp * u;
 }
 
@@ -132,7 +129,7 @@ static void FillPattern(std::span<float> x, int label, int rep)
     {
         const size_t idx =
             half + ((p * 17u + static_cast<size_t>(label) * 13u + static_cast<size_t>(rep) * 3u)
-                    % (n - half));
+                % (n - half));
         x[idx] = (p % 2u == 0) ? 0.9f : -0.85f;
         x[idx] += DetNoise(label, rep, idx, 0.05f);
         if (x[idx] > 1.0f)
@@ -247,13 +244,13 @@ int main()
             if (exciter.test_acc >= 0.98 && bypass.test_acc >= 0.98)
             {
                 std::printf("etalon_synth: note: both paths near ceiling -- "
-                            "task may be too easy to credit the Exciter\n");
+                    "task may be too easy to credit the Exciter\n");
             }
             else if (bypass.test_acc > exciter.test_acc + 0.05)
             {
                 std::printf("etalon_synth: note: bypass wins -- this pattern "
-                            "family is already separable on the raw field; "
-                            "the bank is not a free win\n");
+                    "family is already separable on the raw field; "
+                    "the bank is not a free win\n");
             }
             std::fflush(stdout);
         }
