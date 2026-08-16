@@ -82,23 +82,21 @@ static EtalonConfig MakeBaseConfig()
     cfg.exciter.input_scaling = 0.25;
     cfg.exciter.weight_scaling = 0.2;
 
-    cfg.readout.dim = 0;
+    cfg.readout.epochs = kExciterEpochs;
+    cfg.readout.dim = 0; // auto
     cfg.readout.num_outputs = 10;
     cfg.readout.task = ReadoutTask::Classification;
-    cfg.readout.num_layers = 1;
-    cfg.readout.use_pooling = true;
+    cfg.readout.activation = ReadoutActivation::NONE;
+    cfg.readout.batch_size = 64;
     cfg.readout.conv_channels = 16;
     cfg.readout.channel_growth = 1;
-    cfg.readout.activation = ReadoutActivation::NONE;
-    cfg.readout.optimizer = ReadoutOptimizer::Adam;
-    cfg.readout.epochs = kExciterEpochs;
-    cfg.readout.batch_size = 64;
+    cfg.readout.num_layers = 1;
+    cfg.readout.use_pooling = true;
     cfg.readout.lr_max = 0.002f;
     cfg.readout.lr_min_frac = 0.005;
-    cfg.readout.num_threads = 0; // HCNN auto
     cfg.readout.restore_best_epoch = true;
+
     cfg.readout.best_epoch_holdout_frac = 0.1f;
-    cfg.readout.seed = 42;
 
     return cfg;
 }

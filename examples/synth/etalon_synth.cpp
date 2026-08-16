@@ -62,6 +62,8 @@ static EtalonConfig MakeBaseConfig()
     cfg.readout.lr_min_frac = 0.04;
     cfg.readout.restore_best_epoch = true;
 
+    //cfg.readout.best_epoch_holdout_frac = 0.1f;
+
     cfg.collect_threads = 1;
 
     return cfg;
