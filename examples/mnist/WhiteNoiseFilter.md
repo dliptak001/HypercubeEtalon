@@ -1,7 +1,7 @@
 # The etalon preprocessor as a white-noise filter
 
 HypercubeWTF asked a simple question. Pack an image onto the cube, dump
-white noise onto that field, and ask whether a frozen preprocessor
+white noise onto that field, and ask whether a hypercube reservoir
 helps the CNN head more than handing the noisy pack straight to it.
 Their answer was yes. On clean digits the reservoir costs almost
 nothing. Under heavy noise it holds eight or nine points that the
@@ -13,17 +13,17 @@ reservoir episode. Same packing, same kind of head, same noise on the
 packed field. Training stays clean. Only the test field gets noisy.
 
 The answer is yes again. On a clean test set the two paths are almost
-tied — bypass 0.979, etalon transit 0.976. Once the noise gets
-serious, the transit pulls ahead and stays ahead. At σ = 0.5 the gap
+tied — bypass 0.979, etalon preprocessor 0.976. Once the noise gets
+serious, the etalon preprocessor pulls ahead and stays ahead. At σ = 0.5 the gap
 is 5.2 points (0.851 vs 0.799). It peaks at 6.9 points around
 σ = 0.7–0.8 and sits near 6.6 points all the way out to σ = 1.0.
 
 That is the same story WTF told. Smaller gap, different machine. Their
-reservoir is not this etalon transit, and the two tables are not one
+reservoir is not this etalon preprocessor, and the two tables are not one
 experiment.
 
 MNIST is just a convenient test bed. What we are scoring is a packed
-field going into a HypercubeCNN, with or without the etalon transit in
+field going into a HypercubeCNN, with or without the etalon preprocessor in
 front of it.
 
 ## How the comparison works
@@ -48,17 +48,17 @@ Each path trains once. Then we score the same noise ladder on both,
 
 On a clean field, or with only a little grain (σ = 0.1), bypass is a
 few tenths of a point better. At σ = 0.2 they are tied at 0.967. From
-σ = 0.3 on, the etalon transit is ahead, and the lead grows until it
+σ = 0.3 on, the etalon preprocessor is ahead, and the lead grows until it
 levels off around six and a half points. Both paths stay well above
 chance (0.10) even at σ = 1.0.
 
 Bypass has no trouble fitting the clean training set — train accuracy
 is 0.998 on both arms. It just does not recognize those digits once
-the test field is full of snow. The transit puts the noisy field
+the test field is full of snow. The preprocessor puts the noisy field
 somewhere the clean-trained head still knows how to read.
 
 WTF saw the same split. At σ = 0.5 their bypass sat around 0.84–0.85
-and the reservoir around 0.93. This sweep’s etalon transit at that
+and the reservoir around 0.93. This sweep’s etalon preprocessor at that
 same noise is 0.851, about where WTF’s bypass was, and this bypass is
 0.799. Clean accuracy here (0.976 / 0.979) is right next to WTF’s
 clean pair (both about 0.979). Same shape. Different heights.
