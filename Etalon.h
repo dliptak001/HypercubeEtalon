@@ -20,7 +20,7 @@ struct EtalonConfig
     ReadoutConfig readout{};
 
     /// If true, skip the Exciter: readout features are a copy of the length-N
-    /// field. Ablation path; the usual pipeline runs the walk.
+    /// field. Ablation path; the usual pipeline runs an etalon transit.
     bool bypass_exciter = false;
 
     /// Parallel workers for bulk @ref Etalon::CollectBatch / @ref Etalon::Accuracy /

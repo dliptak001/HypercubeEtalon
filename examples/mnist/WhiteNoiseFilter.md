@@ -1,135 +1,100 @@
-# Exciter as a white-noise pre-filter for HypercubeCNN
+# The etalon preprocessor as a white-noise filter
 
-Scratch study, not a paper. One Release `etalon_mnist` sweep after the
-example grew a train-once / score-many test-noise table. The question
-is the same one HypercubeWTF asked in
-`HypercubeWTF/examples/mnist/WhiteNoiseFilter.md`:
-does a **frozen** cube preprocessor help the HypercubeCNN head when the
-packed field is hit with additive white Gaussian noise?
+HypercubeWTF asked a simple question. Pack an image onto the cube, dump
+white noise onto that field, and ask whether a frozen preprocessor
+helps the CNN head more than handing the noisy pack straight to it.
+Their answer was yes. On clean digits the reservoir costs almost
+nothing. Under heavy noise it holds eight or nine points that the
+pack-only path loses. The write-up is
+`HypercubeWTF/examples/mnist/WhiteNoiseFilter.md`.
 
-Short answer: **yes, in the same relative way.** Clean data is a near
-tie (bypass a hair ahead). Under strong test AWGN the Exciter holds
-about eight to nine points that bypass loses. That is the WTF headline
-shape. It is **not** a claim that Exciter matches WTF’s absolute
-accuracy, or that a reflection is an orbit.
+This is the same experiment on Etalon. One etalon transit instead of a
+reservoir episode. Same packing, same kind of head, same noise on the
+packed field. Training stays clean. Only the test field gets noisy.
 
-MNIST is only the evaluation vehicle. The pipeline under test is pack →
-optional Exciter bank → HypercubeCNN on a length-N field.
+The answer is yes again. On a clean test set the two paths are almost
+tied — bypass 0.979, etalon transit 0.976. Once the noise gets
+serious, the transit pulls ahead and stays ahead. At σ = 0.5 the gap
+is 5.2 points (0.851 vs 0.799). It peaks at 6.9 points around
+σ = 0.7–0.8 and sits near 6.6 points all the way out to σ = 1.0.
 
-## The A/B
+That is the same story WTF told. Smaller gap, different machine. Their
+reservoir is not this etalon transit, and the two tables are not one
+experiment.
 
-Both arms start from the same packed field. The only change is what
-the head sees:
+MNIST is just a convenient test bed. What we are scoring is a packed
+field going into a HypercubeCNN, with or without the etalon transit in
+front of it.
 
-```text
-Bypass   — packed field (no walk)
-Exciter  — bank after the frozen XOR F/B reflection
-```
+## How the comparison works
 
-Train stays clean. Test noise is i.i.d. N(0, σ) on every packed vertex
-after pack, no clamp, seed_base `0x7E57`. Same grid on both paths after
-each path trains once.
+Every image is packed the same way: the full 28×28 digit in the low
+addresses, a centered crop filling the rest of the 1024-vertex cube.
+Both arms train on the clean 60,000-image training set. At test time
+we add independent Gaussian noise of strength σ to every vertex of
+the packed field — no clipping — and score the 10,000-image test set.
 
-## The claim
+The only difference is what the readout sees.
 
-**A short Exciter walk is nearly transparent on clean packed MNIST and
-is a white-noise pre-filter under strong test AWGN, in the same
-relative sense as the HypercubeWTF reservoir episode.**
+- **Bypass** — the packed field, noise and all.
+- **Etalon transit** — that same field after one frozen transit.
 
-![MNIST test noise: Exciter vs Bypass](etalon_mnist_noise_comp.png)
+Each path trains once. Then we score the same noise ladder on both,
+σ from 0 to 1 in steps of 0.1, always with noise seed `0x7E57`.
 
-| Condition | Bypass (pack → readout) | Exciter (pack → walk → readout) |
-|-----------|-------------------------|----------------------------------|
-| Clean or mild AWGN (σ ≤ 0.1) | Strong (0.965–0.968) | Matchable (0.962–0.966) |
-| Strong AWGN (σ = 0.5) | 0.712 | 0.797 |
-| Peak logged gap | | +0.090 at σ = 0.6 |
+## What happened
 
-The gap at σ = 0.5 is **+8.4 points**. WTF’s multi-seed σ = 0.5 gap was
-**+8.2 to +8.7 points** (bypass ≈0.84–0.85, reservoir ≈0.93). Same
-delta family, different absolute floor.
+![MNIST test noise: etalon transit vs Bypass](etalon_mnist_noise_comp.png)
 
-## Logged sweep
+On a clean field, or with only a little grain (σ = 0.1), bypass is a
+few tenths of a point better. At σ = 0.2 they are tied at 0.967. From
+σ = 0.3 on, the etalon transit is ahead, and the lead grows until it
+levels off around six and a half points. Both paths stay well above
+chance (0.10) even at σ = 1.0.
 
-One run. Train 60000 / test 5000, dim 10, `subcube_dim = 4` (M = 16),
-`in_scale = 0.2`, `wt_scale = 0.2`, PadLowCenter. Exciter 100 epochs,
-bypass 40. Noise seed `0x7E57`.
+Bypass has no trouble fitting the clean training set — train accuracy
+is 0.998 on both arms. It just does not recognize those digits once
+the test field is full of snow. The transit puts the noisy field
+somewhere the clean-trained head still knows how to read.
 
-| sigma | exciter | bypass | delta (exciter − bypass) |
-|------:|--------:|-------:|-------------------------:|
-| 0.0 | 0.966 | 0.968 | −0.002 |
-| 0.1 | 0.962 | 0.965 | −0.003 |
-| 0.2 | 0.949 | 0.944 | +0.005 |
-| 0.3 | 0.925 | 0.889 | +0.036 |
-| 0.4 | 0.867 | 0.802 | +0.064 |
-| 0.5 | 0.797 | 0.712 | +0.084 |
-| 0.6 | 0.724 | 0.634 | +0.090 |
-| 0.7 | 0.647 | 0.562 | +0.085 |
-| 0.8 | 0.579 | 0.494 | +0.086 |
-| 0.9 | 0.521 | 0.442 | +0.079 |
-| 1.0 | 0.475 | 0.396 | +0.079 |
+WTF saw the same split. At σ = 0.5 their bypass sat around 0.84–0.85
+and the reservoir around 0.93. This sweep’s etalon transit at that
+same noise is 0.851, about where WTF’s bypass was, and this bypass is
+0.799. Clean accuracy here (0.976 / 0.979) is right next to WTF’s
+clean pair (both about 0.979). Same shape. Different heights.
 
-Operating picture, same as WTF:
+## The numbers
 
-- **Clean / light noise** — preprocessor is optional. Bypass can sit a
-  few tenths ahead.
-- **Crossover** — between σ = 0.1 and 0.2.
-- **Heavy white noise** — the bank is the difference. The gap opens
-  through σ = 0.6 and then plateaus near +8 points out to σ = 1.0.
-  Both arms stay well above chance (0.10).
+One Release run. Both arms trained to 0.998. After one etalon transit
+the 1024 bank values averaged 0.1448 in size.
 
-Bypass still fits the clean training field, then fails on the noisy
-test field. The walk reduces that mismatch: noisy packs land closer to
-a region the clean-trained head still understands.
+| sigma | transit | bypass | transit − bypass |
+|------:|--------:|-------:|-----------------:|
+| 0.0 | 0.976 | 0.979 | −0.003 |
+| 0.1 | 0.974 | 0.977 | −0.003 |
+| 0.2 | 0.967 | 0.967 | +0.000 |
+| 0.3 | 0.947 | 0.934 | +0.014 |
+| 0.4 | 0.910 | 0.875 | +0.035 |
+| 0.5 | 0.851 | 0.799 | +0.052 |
+| 0.6 | 0.784 | 0.723 | +0.062 |
+| 0.7 | 0.717 | 0.648 | +0.069 |
+| 0.8 | 0.649 | 0.580 | +0.069 |
+| 0.9 | 0.587 | 0.521 | +0.066 |
+| 1.0 | 0.535 | 0.469 | +0.066 |
 
-## Same property, different machine
+## Settings
 
-| | HypercubeWTF (logged) | This Exciter sweep |
-|--|----------------------|--------------------|
-| Frozen preprocessor | Reservoir episode, T = 20 | Bank reflection, M = 16 (`subcube_dim = 4`) |
-| Head sees | End-of-episode state | Length-N bank after the walk |
-| Pack / dim | PadLowCenter, dim 10 | Same |
-| Train | Clean 60k | Clean 60k |
-| Test | 10k + field AWGN | 5k + field AWGN |
-| Headline Δ at σ = 0.5 | +8.2 to +8.7 pp | +8.4 pp |
-| Clean | Both ≈0.979 | 0.966 vs 0.968 |
-| Abs. acc at σ = 0.5 | ≈0.93 vs ≈0.85 | 0.797 vs 0.712 |
+What `etalon_mnist.cpp` used for this run.
 
-Do **not** read the two tables as one campaign. WTF used a larger test
-set, a different head activation (none vs TANH here), a different
-frozen machine, and several noise seeds at σ = 0.5. The thing that
-repeats is the **filter shape**: near-zero tax when the field is
-clean, a multi-point lift once the field is white.
-
-That is why “similar noise reduction properties” is the right sentence,
-and “the Exciter matches the WTF reservoir” is the wrong one.
-
-## What this does not claim
-
-- A denoise theorem, or a win against Gaussian / Wiener / BM3D.
-- Robustness to blur, occlusion, adversarial, or non-white noise.
-- That every `subcube_dim` / scale pair is a pre-filter. This is one
-  short-walk recipe.
-- That the bank replaces a good pack on clean data. Clean, it does not.
-- That Etalon replaces WTF. No orbit length T, no delay line, no
-  episode IC. One map is one bank of reflections.
-
-## Appendix — recipe for the table above
-
-Example knobs in `etalon_mnist.cpp` at the time of the run. Not a
-product default promise.
-
-| Meaning | Where | Value |
-|---------|-------|-------|
-| Cube dim / N | `exciter.dim` | 10 / 1024 |
-| Walk | `exciter.subcube_dim` | 4 (M = 16) |
-| Mixer | `input_scaling` / `weight_scaling` | 0.2 / 0.2 |
-| Weight seed | `exciter.seed` | 38715376369942979 |
-| Head | `readout.*` | 1 layer, 16 ch, max pool, TANH |
-| Epochs | `kExciterEpochs` / `kBypassEpochs` | 100 / 40 |
-| `lr_max` | readout | 0.002 |
-| Pack | `kPack` | PadLowCenter |
-| Train / test | `kTrainSamples` / `kTestSamples` | 60000 / 5000 |
-| Sweep | `kTestNoiseStart` / `End` / `Step` | 0 / 1 / 0.1 |
-| Noise seed | `kTestNoiseSeedBase` | 0x7E57 |
-
-Replay: `kRunBypass = true`, `kTestNoiseSweep = true`, Release build.
+| | |
+|--|--|
+| Cube | dim 10, 1024 vertices |
+| Etalon transit | `subcube_dim = 5` (32 steps) |
+| Input / weight scale | 1.0 / 0.15 |
+| Weight seed | 3458567978345987 |
+| Readout | 1 layer, 16 channels, max pool, no activation |
+| Epochs | 100 transit, 20 bypass |
+| Learning rate | 0.003 |
+| Packing | PadLowCenter |
+| Train / test | 60,000 / 10,000 |
+| Noise | σ = 0, 0.1, …, 1.0, seed `0x7E57` |

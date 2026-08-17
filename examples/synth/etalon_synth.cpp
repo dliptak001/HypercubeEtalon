@@ -4,8 +4,8 @@
 /// Six classes of length-N cube fields: multi-tone carriers in the low half,
 /// sparse peaks in the high half, plus deterministic noise. Not a vision claim.
 ///
-/// Product path: field → Exciter → readout → held-out Accuracy.
-/// Bypass (field → readout, no walk) is opt-in via kRunBypass.
+/// Product path: field → etalon transit → readout → held-out Accuracy.
+/// Bypass (field → readout, no transit) is opt-in via kRunBypass.
 ///
 /// No data files. Soft floor is on the Exciter test accuracy.
 
@@ -31,7 +31,7 @@ static constexpr int kTestPerClass = 32;
 static constexpr int kTestRepBase = 10'000; // test reps never reuse train (label, rep)
 static constexpr double kMinExciterTestAcc = 0.70;
 static constexpr float kNoiseStd = 0.22f;
-// Occasional consistency check: field → readout with no Exciter walk.
+// Occasional consistency check: field → readout with no etalon transit.
 static constexpr bool kRunBypass = false;
 
 // =============================================================================

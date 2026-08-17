@@ -25,11 +25,12 @@ struct ExciterConfig
     /// Scale on neighbor weight draws: U(-1, 1) × weight_scaling.
     float weight_scaling = 0.02f;
 
-    /// Dimension of the face each reflection walks. M = 2^subcube_dim
-    /// vertices per start. Valid **[1, dim]**. `dim` is the whole cube;
-    /// `dim-1` is a half-cube. Pins the high `dim - subcube_dim` bits;
-    /// the walk is that face through r. Full star: off-face neighbors
-    /// stay at the scaled input. Default 6 with default dim 8 is M = 64.
+    /// Dimension of the face each start covers in an etalon transit.
+    /// M = 2^subcube_dim vertices per start. Valid **[1, dim]**. `dim`
+    /// is the whole cube; `dim-1` is a half-cube. Pins the high
+    /// `dim - subcube_dim` bits; the transit along that face goes
+    /// through r. Full star: off-face neighbors stay at the scaled
+    /// input. Default 6 with default dim 8 is M = 64.
     size_t subcube_dim = 6;
 };
 
@@ -39,11 +40,12 @@ struct ExciterConfig
 /// never updated. This is not a reservoir: there is no leak, no orbit,
 /// and no delay line.
 ///
-/// Each start vertex r and its face antipode are a pair of reflectors.
-/// @ref ExciteCube scales the input once, then for every r reloads that
-/// scaled field and walks v = 0 … M-1 then M-2 … 0 of the physical
-/// vertex `v xor r`. Each site write is tanh of the full-star neighbor
-/// sum. The value written on the second visit to r is the output sample.
+/// @ref ExciteCube is one etalon transit. Each start vertex r and its
+/// face antipode are a pair of reflectors. The transit scales the input
+/// once, then for every r reloads that scaled field and visits
+/// v = 0 … M-1 then M-2 … 0 of the physical vertex `v xor r`. Each site
+/// write is tanh of the full-star neighbor sum. The value written on the
+/// second visit to r is the output sample.
 class Exciter
 {
 public:
@@ -58,9 +60,10 @@ public:
     Exciter(const Exciter&) = delete;
     Exciter& operator=(const Exciter&) = delete;
 
-    /// Scale @p input_field in place by input_scaling, then for each
-    /// start r reload that field, walk to the face antipode and back,
-    /// and write output[r]. Length must be N(); must not alias internals.
+    /// One etalon transit: scale @p input_field in place by
+    /// input_scaling, then for each start r reload that field, go to
+    /// the face antipode and back, and write output[r]. Length must be
+    /// N(); must not alias internals.
     /// @return length-N output; valid until the next ExciteCube or destroy.
     /// @throws std::invalid_argument if @p input_field is null.
     [[nodiscard]] const float* ExciteCube(float* input_field);
@@ -74,7 +77,7 @@ public:
 
     [[nodiscard]] size_t SubcubeDim() const { return subcube_dim_; }
 
-    /// Vertices on one reflection: M = 2^subcube_dim.
+    /// Vertices on one start's out-and-back: M = 2^subcube_dim.
     [[nodiscard]] size_t WalkSize() const { return m_; }
 
 private:

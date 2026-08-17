@@ -4,12 +4,12 @@
 /// Pipeline: IDX load → file-order prefix → PadLowCenter pack → CollectBatch
 /// → TrainOnCollected → Accuracy on packed test fields.
 ///
-/// Product path: pack → Exciter → readout → held-out Accuracy.
-/// Bypass (pack → readout, no walk) is opt-in via kRunBypass.
+/// Product path: pack → etalon transit → readout → held-out Accuracy.
+/// Bypass (pack → readout, no transit) is opt-in via kRunBypass.
 /// Optional test-only AWGN on the packed field (train clean). Demo knobs
 /// kTestNoiseSweep / Start / End / Step. Off = clean test. On = train once
 /// per path, then score start, start+step, ... while <= end and print a
-/// table. kRunBypass scores the same grid on the skip-the-walk path too.
+/// table. kRunBypass scores the same grid on the skip-the-transit path too.
 ///
 /// Data: C:\HypercubeEtalon\data (see examples/README.md appendix).
 ///
@@ -68,7 +68,7 @@ static const char* PackModeName(PackMode pack)
 
 // Path-specific readout length. Bypass sees the packed field and converges
 // sooner; the Exciter bank wants the longer schedule.
-static constexpr int kExciterEpochs = 100;//100;
+static constexpr int kExciterEpochs = 100;
 static constexpr int kBypassEpochs = 20;
 
 static EtalonConfig MakeBaseConfig()
@@ -77,10 +77,10 @@ static EtalonConfig MakeBaseConfig()
 
     // PadLow / PadLowCenter need N >= 784 → dim >= 10.
     cfg.exciter.dim = 10;
-    cfg.exciter.seed = 38715376369942979ull;
-    cfg.exciter.subcube_dim = 4;
-    cfg.exciter.input_scaling = 0.25;
-    cfg.exciter.weight_scaling = 0.2;
+    cfg.exciter.seed = 3458567978345987ull;
+    cfg.exciter.subcube_dim = 5;
+    cfg.exciter.input_scaling = 1.0;
+    cfg.exciter.weight_scaling = 0.15;
 
     cfg.readout.epochs = kExciterEpochs;
     cfg.readout.dim = 0; // auto
@@ -92,8 +92,8 @@ static EtalonConfig MakeBaseConfig()
     cfg.readout.channel_growth = 1;
     cfg.readout.num_layers = 1;
     cfg.readout.use_pooling = true;
-    cfg.readout.lr_max = 0.002f;
-    cfg.readout.lr_min_frac = 0.005;
+    cfg.readout.lr_max = 0.003;
+    cfg.readout.lr_min_frac = 0.04;
     cfg.readout.restore_best_epoch = true;
 
     cfg.readout.best_epoch_holdout_frac = 0.1f;
@@ -113,11 +113,10 @@ static constexpr int kTestSamples = 10000;
 static constexpr float kPad = -1.0f;
 static constexpr int kImgSide = 28;
 static constexpr int kImgPixels = kImgSide * kImgSide;
-// Soft floor on the product path (not chance on 10 classes).
 static constexpr double kMinExciterTestAcc = 0.50;
 
-// Occasional consistency check: pack → readout with no Exciter walk.
-static constexpr bool kRunBypass = false;
+// Occasional consistency check: pack → readout with no etalon transit.
+static constexpr bool kRunBypass = true;
 
 static constexpr bool kTestNoiseSweep = true;
 static constexpr float kTestNoiseStart = 0.0f;
