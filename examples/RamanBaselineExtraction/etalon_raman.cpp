@@ -16,7 +16,7 @@
 #include <vector>
 
 static constexpr int kTrainSamples = 10000;
-static constexpr int kTestSamples = 1000;
+static constexpr int kTestSamples = 2000;
 static constexpr bool kRunBypass = false;
 static constexpr bool kSkipTrain = false;
 static constexpr bool kReportWalkGain = false;

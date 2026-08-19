@@ -3,7 +3,7 @@
 #include <string>
 
 inline constexpr const char* kRamanDataRoot =
-    "C:/HypercubeEtalon/RamanSpectraLCO";
+    "C:/HypercubeEtalon/RamanSpectraLCOHard";
 inline constexpr const char* kRamanModelStem =
     "C:/HypercubeEtalon/RamanModels/readout";
 

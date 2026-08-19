@@ -19,7 +19,7 @@ inline EtalonConfig MakeConfig()
     cfg.exciter.input_scaling = 1.0;
     cfg.exciter.weight_scaling = 0.15;
 
-    cfg.readout.epochs = 100;
+    cfg.readout.epochs = 30;
     cfg.readout.dim = 0; // auto
     cfg.readout.num_outputs = static_cast<int>(kN);
     cfg.readout.task = ReadoutTask::Regression;
@@ -32,8 +32,6 @@ inline EtalonConfig MakeConfig()
     cfg.readout.lr_max = 0.003f;
     cfg.readout.lr_min_frac = 0.04;
     cfg.readout.restore_best_epoch = true;
-
-    //cfg.readout.best_epoch_holdout_frac = 0.1f;
 
     cfg.collect_threads = 1;
 
