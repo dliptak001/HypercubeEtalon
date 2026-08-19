@@ -156,3 +156,26 @@ The rest of the write-up is
 Runnable programs live under [`examples/`](examples/README.md).
 
 The Raman spectra themselves (about 1 GB) are not in this repository.
+
+## SDKs
+
+**C++** — link `HypercubeEtalonCore`, include `Etalon.h`, work with
+`Etalon`. The guide is [`docs/CPP_SDK.md`](docs/CPP_SDK.md).
+
+**Python** — `pip install hypercube-etalon`, import `hypercube_etalon`,
+work with `Etalon`. The guide is
+[`docs/Python_SDK.md`](docs/Python_SDK.md); the PyPI-facing package readme is
+[`python/README.md`](python/README.md). Bindings build from this repo via
+`pip install ./python` (pybind11 + scikit-build; does not use the CLion
+`cmake-build-*` trees).
+
+```python
+import numpy as np
+import hypercube_etalon as he
+
+et = he.Etalon(dim=7, exciter_subcube_dim=5, exciter_input_scaling=1.0,
+               exciter_weight_scaling=0.15, readout_num_outputs=6,
+               readout_task="classification", readout_epochs=100)
+et.fit(fields_train, labels_train)          # (count, N) float32, (count,) int
+test_acc = et.accuracy(fields_test, labels_test)
+```
