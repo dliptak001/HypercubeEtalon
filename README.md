@@ -141,19 +141,15 @@ ordinary convolutional nets lose that argument under a dense peak
 cluster. The Etalon does not.
 
 One HypercubeCNN readout layer, one convolutional channel, no
-pooling, 100 epochs on 10,000 synthetic LiCoO₂ (lithium cobalt
-oxide, LCO) training spectra. Validation RMSE is 4.59 on 1,000
-held-out spectra. Grey is the spectrum, red is the ground-truth
-baseline, blue is the extract. Blue stays on the fluorescence
-through the 480–530 stacks on both the training overlay and the
-held-out validation overlay.
+pooling, 30 epochs on 10,000 synthetic LiCoO₂ (lithium cobalt
+oxide) training spectra — the LCOHard set. Validation RMSE is 4.88
+on 2,000 held-out spectra. Grey is the spectrum, red is the
+ground-truth baseline, blue is the extract. Blue stays on the
+fluorescence through the 480–530 stacks on all four held-out
+panels.
 
-![Training extract, spectra 3811 through 3814](examples/RamanBaselineExtraction/extracted_baselines_training.png)
+![Held-out validation extract, spectra 581 through 584](examples/RamanBaselineExtraction/extracted_baselines_etalon.png)
 
-![Held-out validation extract, spectra 581 through 584](examples/RamanBaselineExtraction/extracted_baselines_validation.png)
-
-The run log is
-[`etalon_raman_ep100_LCO.txt`](examples/RamanBaselineExtraction/etalon_raman_ep100_LCO.txt).
 The rest of the write-up is
 [`examples/RamanBaselineExtraction/`](examples/RamanBaselineExtraction/README.md).
 

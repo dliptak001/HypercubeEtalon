@@ -20,17 +20,14 @@ Grey is the raw spectrum, red is the true baseline, blue is the
 extract. They agree to a few counts (training RMSE 4.84,
 validation 4.88) while the fluorescence itself swings by hundreds.
 The extract stays on the background instead of climbing into the
-bands. The validation panel is the same picture. The network did
-not memorize the training set.
+bands. All four panels are held-out spectra. The network did not
+memorize the training set.
 
-![Training extract](extracted_baselines_training.png)
+![Held-out validation extract, spectra 581 through 584](extracted_baselines_etalon.png)
 
-Training panel. Blue and red sit on the same slow curve. The peaks
-stay in the spectrum.
-
-![Held-out validation extract](extracted_baselines_validation.png)
-
-Validation panel. Same fidelity on spectra the readout never fit.
+Validation/581–584. Blue and red sit on the same slow curve — through
+the peak clusters, and down onto the noisy low-count baseline of 584.
+The peaks stay in the spectrum.
 
 ---
 
@@ -79,7 +76,7 @@ Each pattern `X` is three files. Both splits also have one shared axis file.
 X.data.txt      input spectrum
 X.label.txt     ground-truth baseline (train / score target)
 X.peaks.txt     ignore for now
-xaxis.txt       2048 wavenumbers; unused (axis is 0 … 2047)
+xaxis.txt       2048 wavenumbers; ignored by the programs, used by plot_extracted.py
 ```
 
 Indices are contiguous. Training and validation reuse the same numeric names
