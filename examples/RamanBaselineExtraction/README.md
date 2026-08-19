@@ -11,26 +11,50 @@ up into the vibrational excitation bands or cut a hole under them.
 
 HypercubeEtalon recovers the fluorescence through the peak clusters.
 
-The overlays below come from a hundred-epoch fit on synthetic LiCoO₂
-(lithium cobalt oxide, LCO) spectra. Ten thousand spectra for
-training, a thousand held out. The HypercubeCNN readout that drew
-the blue curve is one layer, one channel, no pooling.
+The overlays below come from a thirty-epoch fit on the LCOHard set of
+synthetic LiCoO₂ (lithium cobalt oxide) spectra. Ten thousand spectra
+for training, two thousand held out. The HypercubeCNN readout that
+drew the blue curve is one layer, one channel, no pooling.
 
 Grey is the raw spectrum, red is the true baseline, blue is the
-extract. They agree to a few counts (training RMSE 4.48,
-validation 4.59) while the fluorescence itself swings by hundreds.
+extract. They agree to a few counts (training RMSE 4.84,
+validation 4.88) while the fluorescence itself swings by hundreds.
 The extract stays on the background instead of climbing into the
 bands. The validation panel is the same picture. The network did
 not memorize the training set.
 
-![Training extract, spectra 3811 through 3814](extracted_baselines_training.png)
+![Training extract](extracted_baselines_training.png)
 
-Training/3811–3814. Blue and red sit on the same slow curve. The
-peaks stay in the spectrum.
+Training panel. Blue and red sit on the same slow curve. The peaks
+stay in the spectrum.
 
-![Held-out validation extract, spectra 581 through 584](extracted_baselines_validation.png)
+![Held-out validation extract](extracted_baselines_validation.png)
 
-Validation/581–584. Same fidelity on spectra the readout never fit.
+Validation panel. Same fidelity on spectra the readout never fit.
+
+---
+
+## Results
+
+Full LCOHard split — 10000 training spectra, 2000 held-out validation
+spectra. Denormalized RMSE in raw counts (see [Error](#error)).
+
+| Split | RMSE |
+|-------|-----:|
+| Training | 4.842 |
+| Validation | 4.885 |
+
+The validation score sits 0.04 counts above training. At this readout
+capacity (one conv layer, one channel, no pooling) the fit does not
+overfit the 10000-spectrum split.
+
+Run details, from the run that produced those numbers:
+
+- 30 epochs, batch 48, `lr_max` 0.003, cosine decay,
+  `restore_best_epoch` on. Best epoch was 28; the restored weights
+  are what both scores measure.
+- Collect + train time 1742.6 s on a 32-hardware-thread box
+  (`collect_threads = 1`; the HCNN training pool used all 32).
 
 ---
 
@@ -39,7 +63,7 @@ Validation/581–584. Same fidelity on spectra the readout never fit.
 Fixed root (read in place, not copied):
 
 ```text
-C:\HypercubeEtalon\RamanSpectraLCO\
+C:\HypercubeEtalon\RamanSpectraLCOHard\
   Training\
   Validation\
 ```
@@ -47,7 +71,7 @@ C:\HypercubeEtalon\RamanSpectraLCO\
 | Split | Patterns | Index range |
 |-------|----------|-------------|
 | Training | 10000 | `0` … `9999` |
-| Validation | 1000 | `0` … `999` |
+| Validation | 2000 | `0` … `1999` |
 
 Each pattern `X` is three files. Both splits also have one shared axis file.
 
@@ -60,6 +84,19 @@ xaxis.txt       2048 wavenumbers; unused (axis is 0 … 2047)
 
 Indices are contiguous. Training and validation reuse the same numeric names
 in their own folders; they are different spectra.
+
+---
+
+## Host knobs
+
+`MakeConfig()` in `BaselineExtractor.h`. The values behind the
+results above:
+
+| Knob | Value |
+|------|-------|
+| Cube | dim 11, N = 2048 |
+| Exciter | subcube_dim 5 (M = 32), input / weight scale 1.0 / 0.15, seed 3458567978345987 |
+| Readout | 1 layer, 1 channel, no pooling, no activation, epochs 30, batch 48, lr_max 0.003 |
 
 ---
 
@@ -113,21 +150,3 @@ That is the number this example reports. Each readout epoch prints
 train `train_rmse`. After fit, the same score is printed on the train
 prefix and the validation prefix. Peaks and percent-of-peak error are
 out of scope.
-
----
-
-## Seed
-
-HypercubeEtalon is highly insensitive to the Exciter seed. That is a
-feature: seed is not a tuning parameter.
-
-Three independent `exciter.seed` values, same everything else, full
-split (10000 train / 1000 validation), denormalized val RMSE:
-
-| val RMSE |
-|---------:|
-| 6.155 |
-| 6.147 |
-| 6.184 |
-
-Spread is 0.037 on a mean of 6.162 (about 0.6%).
