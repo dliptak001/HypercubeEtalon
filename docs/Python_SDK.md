@@ -327,7 +327,8 @@ Typical mistakes:
 - Bulk `fields` / `targets` row counts disagree
 - Class label outside `[0, num_outputs)`
 - `predict_class` / `accuracy` on a regression model
-- Calling `train` or `accuracy_on_collected` with an empty collected set
+- Calling `train` with an empty collected set (note: `accuracy_on_collected` /
+  `r2_on_collected` return `0.0` on an empty set instead of raising)
 
 ## Model persistence
 
