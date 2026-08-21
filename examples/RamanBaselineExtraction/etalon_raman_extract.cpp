@@ -13,7 +13,7 @@ static constexpr const char* kDataRoot = "C:/HypercubeEtalon/RamanSpectraLCOHard
 static constexpr const char* kSplit = "Validation"; //"Validation";
 static constexpr const char* kModelStem = "C:/HypercubeEtalon/RamanModels/readout_exciter";
 // Dataset file numbers: Training/0.data.txt, Training/42.data.txt, …
-static constexpr int kIndices[] = {281, 282, 283, 284};
+static constexpr int kIndices[] = {1971, 1972, 1973, 1974};
 static constexpr const char* kOutDir = "C:/HypercubeEtalon/RamanModels/extracted";
 
 int main()

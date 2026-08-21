@@ -65,8 +65,7 @@ clean pair (both about 0.979). Same shape. Different heights.
 
 ## The numbers
 
-One Release run. Both arms trained to 0.998. After one etalon transit
-the 1024 bank values averaged 0.1448 in size.
+One Release run. Both arms trained to 0.998.
 
 | sigma | transit | bypass | transit − bypass |
 |------:|--------:|-------:|-----------------:|
