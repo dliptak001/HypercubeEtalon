@@ -143,8 +143,8 @@ ordinary convolutional nets lose that argument under a dense peak
 cluster. The Etalon does not.
 
 One HypercubeCNN readout layer, one convolutional channel, no
-pooling, 30 epochs on 10,000 synthetic LiCoO₂ (lithium cobalt
-oxide) training spectra — the LCOHard set. Validation RMSE is 4.88
+pooling, 60 epochs on 10,000 synthetic LiCoO₂ (lithium cobalt
+oxide) training spectra — the LCOHard set. Validation RMSE is 4.77
 on 2,000 held-out spectra. Grey is the spectrum, red is the
 ground-truth baseline, blue is the extract. Blue stays on the
 fluorescence through the 480–530 stacks on all four held-out

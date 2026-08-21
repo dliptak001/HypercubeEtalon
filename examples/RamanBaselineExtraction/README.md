@@ -11,14 +11,14 @@ up into the vibrational excitation bands or cut a hole under them.
 
 HypercubeEtalon recovers the fluorescence through the peak clusters.
 
-The overlays below come from a thirty-epoch fit on the LCOHard set of
+The overlays below come from a sixty-epoch fit on the LCOHard set of
 synthetic LiCoO₂ (lithium cobalt oxide) spectra. Ten thousand spectra
 for training, two thousand held out. The HypercubeCNN readout that
 drew the blue curve is one layer, one channel, no pooling.
 
 Grey is the raw spectrum, red is the true baseline, blue is the
-extract. They agree to a few counts (training RMSE 4.84,
-validation 4.88) while the fluorescence itself swings by hundreds.
+extract. They agree to a few counts (training RMSE 4.71,
+validation 4.77) while the fluorescence itself swings by hundreds.
 The extract stays on the background instead of climbing into the
 bands. All four panels are held-out spectra. The network did not
 memorize the training set.
@@ -38,19 +38,19 @@ spectra. Denormalized RMSE in raw counts (see [Error](#error)).
 
 | Split | RMSE |
 |-------|-----:|
-| Training | 4.842 |
-| Validation | 4.885 |
+| Training | 4.705 |
+| Validation | 4.767 |
 
-The validation score sits 0.04 counts above training. At this readout
+The validation score sits 0.06 counts above training. At this readout
 capacity (one conv layer, one channel, no pooling) the fit does not
 overfit the 10000-spectrum split.
 
 Run details, from the run that produced those numbers:
 
-- 30 epochs, batch 48, `lr_max` 0.003, cosine decay,
-  `restore_best_epoch` on. Best epoch was 28; the restored weights
+- 60 epochs, batch 48, `lr_max` 0.003, cosine decay,
+  `restore_best_epoch` on. Best epoch was 59; the restored weights
   are what both scores measure.
-- Collect + train time 1742.6 s on a 32-hardware-thread box
+- Collect + train time 2252.0 s on a 32-hardware-thread box
   (`collect_threads = 1`; the HCNN training pool used all 32).
 
 ---
@@ -93,7 +93,7 @@ results above:
 |------|-------|
 | Cube | dim 11, N = 2048 |
 | Exciter | subcube_dim 5 (M = 32), input / weight scale 1.0 / 0.15, seed 3458567978345987 |
-| Readout | 1 layer, 1 channel, no pooling, no activation, epochs 30, batch 48, lr_max 0.003 |
+| Readout | 1 layer, 1 channel, no pooling, no activation, epochs 60, batch 48, lr_max 0.003 |
 
 ---
 
