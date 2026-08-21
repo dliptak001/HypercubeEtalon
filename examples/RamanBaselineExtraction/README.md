@@ -3,11 +3,12 @@
 A Raman spectrum is an array of intensity values: sharp molecular
 peaks sitting on a slow fluorescence background. The task is to
 characterize that background so that it can, in follow-on steps, be
-subtracted from the original spectrum, leaving only pristine Raman
-peaks remaining. That extraction is the part conventional methods
-fail, often miserably, at. Polynomials, asymmetric least squares, and
-ordinary convolutional nets follow the empty stretches and then ride
-up into the vibrational excitation bands or cut a hole under them.
+subtracted from the original spectrum, leaving only Raman peaks and
+random noise remaining. That extraction is the part conventional
+methods fail, often miserably, at. Polynomials, asymmetric least
+squares, and ordinary convolutional nets follow the empty stretches
+and then ride up into the vibrational excitation bands or cut a hole
+under them.
 
 HypercubeEtalon recovers the fluorescence through the peak clusters.
 
