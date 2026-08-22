@@ -56,6 +56,54 @@ Run details, from the run that produced those numbers:
 
 ---
 
+## Etalon vs the siblings
+
+Three hosts have now run this task with the same readout shape (one
+conv layer, one channel, no pooling), the same 60-epoch budget, and
+the same split:
+
+| Host | Preprocessor | Training | Validation |
+|------|--------------|---------:|-----------:|
+| **HypercubeEtalon** | etalon transit | **4.705** | **4.767** |
+| HypercubeCascade | etalon transit → reservoir orbit | 4.779 | 4.819 |
+| HypercubeWTF | reservoir orbit | 4.714 | 4.756 |
+
+The Cascade is this Etalon with a frozen HypercubeWTF reservoir
+added behind the transit; WTF is that reservoir alone, driven by the
+normalized spectrum. The Cascade's Exciter is this one to the seed
+(3458567978345987), subcube_dim 5, and input / weight scale
+1.0 / 0.15. The Cascade and WTF share their reservoir to the seed
+(13871537636959942979), spectral radius 0.95, history depth 8, and
+T = 60.
+
+On validation the Etalon lands 0.011 counts above WTF and 0.052
+below the Cascade. The three scores span 0.06 counts. At this noise
+level that is the spread between hosts, not a ranking: the Etalon
+and WTF are a tie, and the Cascade sits a hundredth or so behind
+both. The three overlays, on the same four spectra, are
+indistinguishable; the Cascade's write-up puts all three side by
+side
+([HypercubeCascade/examples/RamanBaselineExtraction](https://github.com/dliptak001/HypercubeCascade/blob/main/examples/RamanBaselineExtraction/README.md)),
+and WTF's has its own
+([HypercubeWTF/examples/RamanBaselineExtraction](https://github.com/dliptak001/HypercubeWTF/blob/main/examples/RamanBaselineExtraction/README.md)).
+
+### Training profile
+
+The three fits earned their scores differently. The Etalon spent
+its first third oscillating — 7.00, 7.17, 7.58, 7.31, 6.84, 7.26,
+6.89 — and did not descend cleanly until around epoch 14. Both
+hosts with a reservoir opened with a fast, clean drop instead: the
+Cascade 9.31, 6.90, then 5.87 by epoch 4; WTF 9.40, 6.87, 6.04,
+5.81. The Etalon overtook the Cascade on training RMSE at epoch 45
+and finished 0.07 counts ahead of it. WTF, after a long shelf
+between 5.23 and 5.89 that lasted until epoch 31, descended
+steadily to 4.714 at epoch 59 and finished 0.009 counts behind the
+Etalon. All three reached their floor in the last few epochs, with
+best epoch 59 of 60 and a small tick upward at 60, so none was
+still improving meaningfully when it stopped.
+
+---
+
 ## Dataset on disk
 
 Fixed root (read in place, not copied):

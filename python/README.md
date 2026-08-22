@@ -177,36 +177,45 @@ techniques on spectra like these, and very likely beats them.
 
 ![Held-out validation extract, spectra 581 through 584](https://raw.githubusercontent.com/dliptak001/HypercubeEtalon/main/examples/RamanBaselineExtraction/extracted_baselines_etalon.png)
 
-### Etalon sets the bar. Can the Cascade raise it?
+### Three hosts, one floor
 
 The Etalon is the whole preprocessor here: one transit, then the
 readout. On spectra like these that is already enough.
+
+Two siblings have now run the same task with the same readout, the
+same 60-epoch budget, and the same split. The two-stage
+([HypercubeCascade](https://github.com/dliptak001/HypercubeCascade))
+puts a frozen HypercubeWTF reservoir behind this very transit and
+scores 4.82. The reservoir-only
+([HypercubeWTF](https://github.com/dliptak001/HypercubeWTF)) runs
+that reservoir alone, with the normalized spectrum as its drive, and
+scores 4.76. Three preprocessors that share no mechanism — a
+transit, an orbit, and the two in series — carry the same one-layer,
+one-channel readout to the same floor, and their overlays are
+indistinguishable from the ones shown.
 
 Real spectra, however, are not nearly this clean. Low laser power,
 short integration times, and weak scatterers all put noise on the
 spectrum, and that is where a baseline extractor has to earn its
 keep.
 
-That is what the two-stage sibling
-([HypercubeCascade](https://github.com/dliptak001/HypercubeCascade))
-is for. It is this Etalon with a frozen HypercubeWTF reservoir
-added behind the transit. With the very same Exciter and readout
-configuration, its overlays are indistinguishable from the ones
-shown. On the strength of the Cascade's MNIST white-noise study
-([`examples/mnist/WhiteNoiseFilter.md`](https://github.com/dliptak001/HypercubeCascade/blob/main/examples/mnist/WhiteNoiseFilter.md)),
-the Cascade is expected to outperform the Etalon alone in that
-noise.
+That is where the hosts should separate. The Cascade's MNIST
+white-noise study
+([`examples/mnist/WhiteNoiseFilter.md`](https://github.com/dliptak001/HypercubeCascade/blob/main/examples/mnist/WhiteNoiseFilter.md))
+found the two-stage path pulling ahead of the Etalon alone from
+moderate noise up, and WTF's own study
+([`examples/mnist/WhiteNoiseFilter.md`](https://github.com/dliptak001/HypercubeWTF/blob/main/examples/mnist/WhiteNoiseFilter.md))
+found its reservoir a filter that holds accuracy as the noise rises.
 
 That is the next experiment.
 
-The overlay and the training profile are in
+The overlay, the training profile, and the three-host comparison are
+in
 [`examples/RamanBaselineExtraction/`](https://github.com/dliptak001/HypercubeEtalon/blob/main/examples/RamanBaselineExtraction/README.md).
 
 Runnable programs live under [`examples/`](https://github.com/dliptak001/HypercubeEtalon/blob/main/examples/README.md).
 
 The Raman spectra themselves (about 1 GB) are not in this repository.
-
----
 
 ## Installation
 
