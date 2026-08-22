@@ -2,4 +2,4 @@
 # - pyproject.toml reads this via scikit-build-core dynamic metadata
 # - hypercube_etalon.__version__ imports it
 # - bindings.cpp gets the same string at compile time via CMake
-__version__ = "1.0.1"
+__version__ = "1.0.2"
