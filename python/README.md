@@ -1,26 +1,37 @@
-# HypercubeEtalon
+# Hypercube Etalon
 
-**HypercubeEtalon** is for high-dimensional data that has no natural clock —
-spectra, sensor frames, packed images, stills. Those are the same kinds of
-static fields people usually feed a spatial CNN, an MLP, or a similar
-feed-forward stack. HypercubeEtalon puts **one frozen hypercube preprocessor**
-in front of the CNN: an **etalon transit** — a deterministic wave swept across
-every vertex/antipode cavity of a Boolean hypercube. The transit's neighbor
-weights are drawn once and never trained. A small
-[HypercubeCNN](https://github.com/dliptak001/HypercubeCNN) head trains on the
-**transit output**. The CNN never sees the original field — it sees what the
-wave leaves behind.
-
-That is the product idea: take a static field, pass it through a frozen
-nonlinearity, and train a spatial readout on what remains. The aim is a
-preprocessor effective enough that the readout can be a single convolutional
-layer with a single channel and no pooling.
-
-This package is the **Python** surface for that product
+This package is the **Python** surface for HypercubeEtalon
 (`import hypercube_etalon`).
 Full API reference: **[docs/Python_SDK.md](https://github.com/dliptak001/HypercubeEtalon/blob/main/docs/Python_SDK.md)**.
 C++ integration guide: **[docs/CPP_SDK.md](https://github.com/dliptak001/HypercubeEtalon/blob/main/docs/CPP_SDK.md)**.
 Project home: **[github.com/dliptak001/HypercubeEtalon](https://github.com/dliptak001/HypercubeEtalon)**.
+
+HypercubeEtalon processes spatial data of the kind presented to a CNN.
+It is built from three core classes.
+
+The **Etalon** class wraps the other two and manages training and
+prediction.
+
+The other two form a pipeline: preprocessor → readout.
+
+The **Exciter** class is a preprocessing stage that consumes input
+patterns, mixes them nonlinearly, and returns a field with the same
+dimensions as the input.
+
+The **Readout** class is a small HypercubeCNN that classifies or
+regresses that field.
+
+This is not reservoir computing.
+
+The point of this experiment is to see if a preprocessing stage in
+front of HypercubeCNN outperforms HypercubeCNN by itself. HypercubeWTF
+has the same goal; it just does it a slightly different way, using a
+**reservoir** with synthetic time, whereas here the preprocessor is an
+**etalon**. The aim is a hypercube preprocessor effective enough that
+the readout can be a single layer with a single convolutional channel
+(weird, I know) and no pooling. Then training is fast, the memory
+footprint is small, and little to no architectural engineering is
+required for the CNN.
 
 ---
 
@@ -51,95 +62,149 @@ as a first-class computational substrate.
 
 - **A topology you don’t store** — the graph is specified: connectivity is
   implicit in the vertex indices; with a seed and a few config scalars the whole
-  preprocessor reconstructs mathematically.
+  reservoir reconstructs mathematically.
 - **Perfect homogeneity** — every vertex has the same degree and the same local
   world, so local dynamics mean the same thing everywhere — no structural
   favorites baked in by a random graph.
 - **Cheap navigation** — each neighbor is a few bit operations on the vertex
   index, not a pointer chase through a stored edge list, so walks stay
   arithmetic and cache-friendly.
-- **Topology-native pairing** — the readout consumes the preprocessor output
-  with zero geometric distortion, and the learned kernels exploit the same
-  locality that generated the dynamics. The data never leaves the hypercube it
-  was born on.
+- **Topology-native pairing** — the readout consumes the reservoir’s output with
+  zero geometric distortion, and the learned kernels exploit the same locality
+  that generated the dynamics. The data never leaves the hypercube it was born
+  on.
 
 Each product in the family is a different architecture on that same foundation.
 
 ---
 
-## What is HypercubeEtalon?
+## The Etalon
 
-An *etalon* here is a start vertex and its face antipode treated as a pair of
-reflectors. One transit sweeps a tanh wave out to the antipode and back for
-every start vertex on the cube; the value standing at the start after the
-wave returns is that vertex's output sample. N starts → N output samples —
-the transit output is a field with the same length and vertex indexing as the
-input.
+I now suspect that the hypercube will someday be recognized as the most
+natural (least contrived) and at the same time the most powerful neural
+network substrate that can possibly be realized.
 
-In classical reservoir computing (and in the siblings
-[HypercubeWTF](https://github.com/dliptak001/HypercubeWTF) and
-[HypercubeCascade](https://github.com/dliptak001/HypercubeCascade)):
+The **Etalon** construct is just another example of how incredibly
+elegant solutions can be built on that substrate.
 
-- Preprocessor weights are **frozen**
-- Only a **readout** is trained
-- Nonlinear dynamics expand and mix the drive into a rich state
+Etalon is a term borrowed from optics. The physical etalon is a pair of
+plane-parallel, highly reflective surfaces (mirrors) between which an
+optical signal propagates. It is used for laser resonators,
+interferometric measurement, and filtering.
 
-Whether the single-stage transit has **real product value** is still an open
-question. Early studies suggest it adds noise filtering the raw field does
-not have (see [Early observations](#early-observations-exploratory)), and the
-built-in `bypass_exciter` flag runs the no-transit ablation so you can check
-on your own task.
+On the hypercube, an `etalon` is a pair of vertices: any vertex and its
+antipode. A hypercube has `N` vertices and therefore `N` etalons on the
+full cube. There are far more than `N` once the cube is subdivided into
+subcubes, each of which carries its own set of etalons.
+
+The HypercubeEtalon design treats a vertex and its antipode as a
+reflective cavity. All vertices in between contribute to the evolution
+of an input signal. That procedure is an **etalon transit**. It goes
+something like this.
+
+    LOOP:
+
+        Pick a vertex r and its antipode r'. This defines an etalon.
+
+        Copy the input field onto the cube. That overlay is the initial
+        condition, and it is the same for every etalon.
+
+        Starting at r, form the weighted sum of its nearest neighbors
+        and write tanh of that sum into r.
+
+        Move to the next vertex along the etalon, form the neighbor
+        sum, and write tanh of that sum into that vertex.
+
+        Order is causal: a later vertex sees values the earlier ones
+        just wrote.
+
+        Continue until the transit reaches the antipode r', then turn
+        around and go back to the starting vertex.
+
+        The starting vertex is then updated for the second time. That
+        is its final value, which is copied to an output buffer.
+
+        For that etalon the task is done.
+
+    GOTO LOOP
+
+The loop repeats until every vertex (every etalon) has been processed,
+which fully populates the output buffer.
 
 ---
 
-## Pipeline
+## White noise filter
 
-```text
-x  (your length-N field — already on the cube, no natural time)
-    │
-    ▼
- frozen etalon transit (one wave over every cavity)
-    │
-    ▼
- transit output (length N) → HypercubeCNN → logits / values
-```
+The etalon preprocessor behaves as a near unity passthrough at low
+to no white noise levels, and offers a meaningful filtering effect
+at moderate to high noise levels. The write-up is
+[`examples/mnist/WhiteNoiseFilter.md`](https://github.com/dliptak001/HypercubeEtalon/blob/main/examples/mnist/WhiteNoiseFilter.md).
 
-- Cube size from **dim** (N = 2<sup>dim</sup>; dim 4…12, prefer ≥ 5).
-- Only the readout trains.
-- Everyday loop in this package:
-  `collect_batch` → `train` → `predict` / `predict_class`,
-  or one-shot `fit` (collect + train).
+![MNIST test noise: etalon transit vs Bypass](https://raw.githubusercontent.com/dliptak001/HypercubeEtalon/main/examples/mnist/etalon_mnist_noise_comp.png)
 
-Unlike HypercubeESN’s Python API, there is no stream of small samples over real
-time and no next-step `fit` on a 1D signal. Each sample is one full field; the
-CNN only ever sees the transit output for that field.
+## Raman baseline extraction (a vibrational spectroscopy application)
 
-Full method list and knobs:
-**[docs/Python_SDK.md](https://github.com/dliptak001/HypercubeEtalon/blob/main/docs/Python_SDK.md)**.
+The first real-world test is Raman spectra: recover the slow
+fluorescence background under sharp molecular peaks without
+lifting the baseline into the bands or cutting trenches beneath
+them. Polynomials, asymmetric least squares, and ordinary
+convolutional nets tend to follow the empty stretches well and then
+fail where it matters, under peaks and peak clusters. Analysts have
+worked around that for decades with spectrum-specific cleanup,
+because no method identifies and extracts a true baseline across a
+broad range of peak intensities and baseline characteristics
+without occasional, and often frequent, human intervention.
 
----
+The Etalon appears to have solved that problem (albeit on synthetic
+data only so far).
 
-## Early observations (exploratory)
+Trained for 60 epochs on the LCOHard set — 10,000 synthetic LiCoO₂
+(lithium cobalt oxide) spectra — it scores a validation RMSE of
+4.77 counts on 2,000 held-out spectra whose baselines span
+hundreds of counts.
 
-On the MNIST white-noise study (train clean, test with Gaussian field noise),
-the transit path holds its accuracy markedly better than the pack-only bypass
-as test noise grows. On a Raman baseline-extraction regression the etalon
-readout runs at the goal size — one conv layer, one channel, no pooling — and
-edges out the two-stage cascade sibling on validation RMSE. The write-ups
-have the details and how we ran them:
+Below are four held-out validation spectra: grey is the raw
+spectrum, red the true baseline, blue the extract. For all four
+shown here, and for each of the remaining 1996 validation spectra
+not shown, baseline identification is, **WITHOUT EXCEPTION**,
+quite remarkable.
 
-| Document | Question |
-|----------|----------|
-| [WhiteNoiseFilter.md](https://github.com/dliptak001/HypercubeEtalon/blob/main/examples/mnist/WhiteNoiseFilter.md) | Noisy test fields: does the transit help vs pack-only → CNN? |
-| [RamanBaselineExtraction/README.md](https://github.com/dliptak001/HypercubeEtalon/blob/main/examples/RamanBaselineExtraction/README.md) | Baseline regression at the goal readout size |
+And it does this with the thin readout the project aims for: one
+HypercubeCNN layer, one convolutional channel, no pooling.
 
-The MNIST study uses small cubes because they are handy to pack and run, not
-because we are chasing digit accuracy. A more rigorous study is still needed
-before treating any of those results as settled. You can reproduce the same
-ideas from Python with this package (pack fields yourself, then collect,
-train, and predict). The original write-ups and C++ demos that produced the
-numbers live under
-[`examples/`](https://github.com/dliptak001/HypercubeEtalon/tree/main/examples).
+In our judgment this at least matches the best of the established
+techniques on spectra like these, and very likely beats them.
+
+![Held-out validation extract, spectra 581 through 584](https://raw.githubusercontent.com/dliptak001/HypercubeEtalon/main/examples/RamanBaselineExtraction/extracted_baselines_etalon.png)
+
+### Etalon sets the bar. Can the Cascade raise it?
+
+The Etalon is the whole preprocessor here: one transit, then the
+readout. On spectra like these that is already enough.
+
+Real spectra, however, are not nearly this clean. Low laser power,
+short integration times, and weak scatterers all put noise on the
+spectrum, and that is where a baseline extractor has to earn its
+keep.
+
+That is what the two-stage sibling
+([HypercubeCascade](https://github.com/dliptak001/HypercubeCascade))
+is for. It is this Etalon with a frozen HypercubeWTF reservoir
+added behind the transit. With the very same Exciter and readout
+configuration, its overlays are indistinguishable from the ones
+shown. On the strength of the Cascade's MNIST white-noise study
+([`examples/mnist/WhiteNoiseFilter.md`](https://github.com/dliptak001/HypercubeCascade/blob/main/examples/mnist/WhiteNoiseFilter.md)),
+the Cascade is expected to outperform the Etalon alone in that
+noise.
+
+That is the next experiment.
+
+The overlay and the training profile are in
+[`examples/RamanBaselineExtraction/`](https://github.com/dliptak001/HypercubeEtalon/blob/main/examples/RamanBaselineExtraction/README.md).
+
+Runnable programs live under [`examples/`](https://github.com/dliptak001/HypercubeEtalon/blob/main/examples/README.md).
+
+The Raman spectra themselves (about 1 GB) are not in this repository.
 
 ---
 

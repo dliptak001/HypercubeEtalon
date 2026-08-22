@@ -134,25 +134,66 @@ to no white noise levels, and offers a meaningful filtering effect
 at moderate to high noise levels. The write-up is
 [`examples/mnist/WhiteNoiseFilter.md`](examples/mnist/WhiteNoiseFilter.md).
 
+![MNIST test noise: etalon transit vs Bypass](examples/mnist/etalon_mnist_noise_comp.png)
+
 ## Raman baseline extraction (a vibrational spectroscopy application)
 
 The first real-world test is Raman spectra: recover the slow
-fluorescence under sharp molecular peaks, and do not lift the
-baseline into the bands. Polynomials, asymmetric least squares, and
-ordinary convolutional nets lose that argument under a dense peak
-cluster. The Etalon does not.
+fluorescence background under sharp molecular peaks without
+lifting the baseline into the bands or cutting trenches beneath
+them. Polynomials, asymmetric least squares, and ordinary
+convolutional nets tend to follow the empty stretches well and then
+fail where it matters, under peaks and peak clusters. Analysts have
+worked around that for decades with spectrum-specific cleanup,
+because no method identifies and extracts a true baseline across a
+broad range of peak intensities and baseline characteristics
+without occasional, and often frequent, human intervention.
 
-One HypercubeCNN readout layer, one convolutional channel, no
-pooling, 60 epochs on 10,000 synthetic LiCoO₂ (lithium cobalt
-oxide) training spectra — the LCOHard set. Validation RMSE is 4.77
-on 2,000 held-out spectra. Grey is the spectrum, red is the
-ground-truth baseline, blue is the extract. Blue stays on the
-fluorescence through the 480–530 stacks on all four held-out
-panels.
+The Etalon appears to have solved that problem (albeit on synthetic
+data only so far).
+
+Trained for 60 epochs on the LCOHard set — 10,000 synthetic LiCoO₂
+(lithium cobalt oxide) spectra — it scores a validation RMSE of
+4.77 counts on 2,000 held-out spectra whose baselines span
+hundreds of counts.
+
+Below are four held-out validation spectra: grey is the raw
+spectrum, red the true baseline, blue the extract. For all four
+shown here, and for each of the remaining 1996 validation spectra
+not shown, baseline identification is, **WITHOUT EXCEPTION**,
+quite remarkable.
+
+And it does this with the thin readout the project aims for: one
+HypercubeCNN layer, one convolutional channel, no pooling.
+
+In our judgment this at least matches the best of the established
+techniques on spectra like these, and very likely beats them.
 
 ![Held-out validation extract, spectra 581 through 584](examples/RamanBaselineExtraction/extracted_baselines_etalon.png)
 
-The rest of the write-up is
+### Etalon sets the bar. Can the Cascade raise it?
+
+The Etalon is the whole preprocessor here: one transit, then the
+readout. On spectra like these that is already enough.
+
+Real spectra, however, are not nearly this clean. Low laser power,
+short integration times, and weak scatterers all put noise on the
+spectrum, and that is where a baseline extractor has to earn its
+keep.
+
+That is what the two-stage sibling
+([HypercubeCascade](https://github.com/dliptak001/HypercubeCascade))
+is for. It is this Etalon with a frozen HypercubeWTF reservoir
+added behind the transit. With the very same Exciter and readout
+configuration, its overlays are indistinguishable from the ones
+shown. On the strength of the Cascade's MNIST white-noise study
+([`examples/mnist/WhiteNoiseFilter.md`](https://github.com/dliptak001/HypercubeCascade/blob/main/examples/mnist/WhiteNoiseFilter.md)),
+the Cascade is expected to outperform the Etalon alone in that
+noise.
+
+That is the next experiment.
+
+The overlay and the training profile are in
 [`examples/RamanBaselineExtraction/`](examples/RamanBaselineExtraction/README.md).
 
 Runnable programs live under [`examples/`](examples/README.md).
