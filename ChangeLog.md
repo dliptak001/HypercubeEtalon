@@ -1,6 +1,7 @@
 # HypercubeEtalon - Change Log
 
-## v1.0.1 (Aug 21, 2026)
+## v1.0.1 (Aug 22, 2026)
+- Mirror the root README into the Python README, show the MNIST noise comparison in the White noise filter sections, and refactor the Raman baseline extraction section to match HypercubeCascade.
 - Refit the Raman baseline extractor at 60 readout epochs: training RMSE 4.705, validation RMSE 4.767 on the LCOHard split, and refresh both READMEs with the new run.
 - Point the Raman extraction demo at validation spectra 1971–1974 and regenerate the baseline overlay plot.
 - Add HypercubeCascade to the root README ecosystem banner.
