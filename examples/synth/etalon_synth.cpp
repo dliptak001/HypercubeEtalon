@@ -48,6 +48,8 @@ static EtalonConfig MakeBaseConfig()
     cfg.exciter.input_scaling = 1.0;
     cfg.exciter.weight_scaling = 0.15;
 
+    cfg.readout_scale = 0.3f;
+
     cfg.readout.epochs = 200;
     cfg.readout.dim = 0; // auto
     cfg.readout.num_outputs = kNumClasses;
@@ -176,6 +178,8 @@ static PathResult RunPath(const char* name, EtalonConfig cfg,
 
     Etalon et(cfg);
     etalon_ex::PrintEtalonHeader(name, et);
+    if (!train_fields.empty())
+        etalon_ex::ReportStageScales(name, et, train_fields.subspan(0, et.N()));
 
     auto t0 = std::chrono::steady_clock::now();
     std::printf("%s: collecting %zu fields...\n", name, train_labels.size());

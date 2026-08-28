@@ -341,9 +341,10 @@ evaluation, hold fields out and call `accuracy` / `r2` (or `predict` /
 - **`fit`** — clear, collect, and train when your arrays are ready
 - **dim 4–12** — field length N = 2<sup>dim</sup>; etalon face
   `exciter_subcube_dim`
-- **Two gains** — `exciter_input_scaling` (field → transit) and
-  `exciter_weight_scaling` (neighbor-weight amplitude); the demos run ~1.0
-  and 0.15–0.5 (the header defaults 0.02 barely drive tanh)
+- **Three gains** — `exciter_input_scaling` (field → transit),
+  `exciter_weight_scaling` (neighbor-weight amplitude), and `readout_scale`
+  (transit → readout); the demos run ~1.0, 0.15–0.5, and 1.0
+  (the header defaults 0.02 barely drive tanh)
 - **Built-in ablation** — `bypass_exciter=True` feeds the raw field to the
   same readout
 - **Classification or regression** — `readout_task` fixed at construction

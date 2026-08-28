@@ -82,6 +82,8 @@ static EtalonConfig MakeBaseConfig()
     cfg.exciter.input_scaling = 1.0;
     cfg.exciter.weight_scaling = 0.15;
 
+    cfg.readout_scale = 1.0f;
+
     cfg.readout.epochs = kExciterEpochs;
     cfg.readout.dim = 0; // auto
     cfg.readout.num_outputs = 10;
@@ -251,19 +253,8 @@ static Etalon TrainPath(const char* name, EtalonConfig cfg,
     Etalon et(cfg);
     etalon_ex::PrintEtalonHeader(name, et);
 
-    if (!train_fields.empty() && !et.config().bypass_exciter)
-    {
-        et.Run(train_fields.subspan(0, et.N()));
-        double acc_abs = 0.0;
-        for (float v : et.LastFeatures())
-            acc_abs += std::fabs(static_cast<double>(v));
-        acc_abs /= static_cast<double>(et.N());
-        std::printf("%s: after one walk, the N bank values average %.4g "
-                    "in size (near 0 the field was crushed; around 1 is "
-                    "the usual working scale)\n",
-                    name, acc_abs);
-        std::fflush(stdout);
-    }
+    if (!train_fields.empty())
+        etalon_ex::ReportStageScales(name, et, train_fields.subspan(0, et.N()));
 
     auto t0 = std::chrono::steady_clock::now();
     std::printf("%s: collecting %zu fields...\n", name, train_labels.size());

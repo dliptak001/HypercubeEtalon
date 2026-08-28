@@ -157,7 +157,7 @@ x  (length-N field, host-packed)
  etalon transit  (or a plain copy, when bypass_exciter)
     │
     ▼
- features (N)  →  HypercubeCNN  →  logits / values
+ × readout_scale → features (N)  →  HypercubeCNN  →  logits / values
 ```
 
 - **N = 2^dim** vertices / field length (dim 4…12; prefer ≥ 5 so a pooled
@@ -184,6 +184,7 @@ sees a copy of the field.)
 | **N** | Vertices / field length = 2^dim |
 | **subcube_dim** | Etalon face size; one walk covers 2^subcube_dim vertices |
 | **bypass_exciter** | Skip the transit; features = a copy of the field (ablation) |
+| **readout_scale** | Gain on the transit output before the readout |
 
 Unlike HypercubeWTF there is no orbit: no `T`, no `readout_slices` (B), no
 reservoir knobs. Features are always the transit output (length N).
@@ -201,6 +202,7 @@ import hypercube_etalon as he
 et = he.Etalon(
     dim=7,                          # required; 4–12; N = 2^dim
     bypass_exciter=False,           # True = ablation (features = the field)
+    readout_scale=1.0,              # transit → readout gain (finite, > 0)
     collect_threads=0,              # 0 = auto
     exciter_seed=7934791766227647176,
     exciter_input_scaling=0.02,     # demos run ~1.0 — see gain note below
@@ -218,6 +220,7 @@ et = he.Etalon(
 |-----------|------|---------|-------------|
 | `dim` | `int` | required | Hypercube dimension **[4, 12]**; prefer ≥ 5 for pooled readouts. N = 2^dim. |
 | `bypass_exciter` | `bool` | `False` | Skip the transit; the readout sees a copy of the field (ablation path). |
+| `readout_scale` | `float` | `1.0` | Gain on the transit output (or the copied field, under bypass) before the readout. Finite, > 0. |
 | `collect_threads` | `int` | `0` | Bulk workers: 0 = auto, 1 = serial, K = K workers. |
 | `exciter_seed` | `int` | `7934791766227647176` | Exciter weight-init seed (matches C++). |
 | `exciter_input_scaling` | `float` | `0.02` | Scalar applied once to the field before the transit. |
@@ -284,6 +287,7 @@ default Adam), pool type, channel growth, batch-norm. C++ defaults apply.
 | `dim`, `N` | Geometry (N = 2^dim) |
 | `subcube_dim`, `walk_size` | Etalon face dim and 2^subcube_dim |
 | `bypass_exciter` | True when the transit is skipped (ablation) |
+| `readout_scale` | Gain on the transit output before the readout |
 | `feature_size` | Floats per sample / `last_features` — always N |
 | `num_collected` | Samples in the batch training buffer |
 | `num_outputs` | Readout width |

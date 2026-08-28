@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <condition_variable>
 #include <cstring>
 #include <exception>
@@ -185,6 +186,10 @@ Etalon::Etalon(const EtalonConfig& cfg)
     if (cfg_.readout.num_outputs < 1)
         throw std::invalid_argument("Etalon: readout.num_outputs must be >= 1");
 
+    if (!(cfg_.readout_scale > 0.0f) || !std::isfinite(cfg_.readout_scale))
+        throw std::invalid_argument(
+            "Etalon: readout_scale must be finite and > 0");
+
     readout_ = std::make_unique<Readout>(cfg_.readout);
     if (readout_->NumFeatures() != n_)
     {
@@ -341,6 +346,7 @@ void Etalon::MapFeaturesParallel(const float* fields_flat, size_t count,
     EnsureCollectPool(nw);
 
     const bool bypass = cfg_.bypass_exciter;
+    const float out_scale = cfg_.readout_scale;
 
     auto run_range = [&](size_t tid, size_t begin, size_t end) {
         CollectWorker& w = collect_workers_[tid];
@@ -350,7 +356,8 @@ void Etalon::MapFeaturesParallel(const float* fields_flat, size_t count,
             float* out = dest + i * n_;
             if (bypass)
             {
-                std::memcpy(out, x, n_ * sizeof(float));
+                for (size_t j = 0; j < n_; ++j)
+                    out[j] = x[j] * out_scale;
             }
             else
             {
@@ -358,7 +365,8 @@ void Etalon::MapFeaturesParallel(const float* fields_flat, size_t count,
                     throw std::logic_error("Etalon::MapFeaturesParallel: null Exciter");
                 std::memcpy(w.field.data(), x, n_ * sizeof(float));
                 const float* y = w.ex->ExciteCube(w.field.data());
-                std::memcpy(out, y, n_ * sizeof(float));
+                for (size_t j = 0; j < n_; ++j)
+                    out[j] = y[j] * out_scale;
             }
         }
     };
@@ -381,16 +389,19 @@ void Etalon::MapInto(std::span<const float> x, float* dest)
             "Etalon: field size must equal N = 2^dim");
     }
 
+    const float out_scale = cfg_.readout_scale;
     if (cfg_.bypass_exciter)
     {
-        std::memcpy(dest, x.data(), n_ * sizeof(float));
+        for (size_t i = 0; i < n_; ++i)
+            dest[i] = x[i] * out_scale;
         return;
     }
 
     // ExciteCube scales in place — never touch the caller's buffer.
     std::memcpy(field_scratch_.data(), x.data(), n_ * sizeof(float));
     const float* y = exciter_->ExciteCube(field_scratch_.data());
-    std::memcpy(dest, y, n_ * sizeof(float));
+    for (size_t i = 0; i < n_; ++i)
+        dest[i] = y[i] * out_scale;
 }
 
 void Etalon::Run(std::span<const float> x)

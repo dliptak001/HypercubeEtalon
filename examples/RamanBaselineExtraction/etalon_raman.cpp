@@ -147,6 +147,12 @@ int main()
                     kSkipTrain ? "true" : "false");
         etalon_ex::PrintEtalonHeader("etalon_raman", ex.etalon());
         {
+            std::vector<float> xn(kN);
+            const auto nrm = RamanNorm::FromSpectrum(train.Spectrum(0));
+            nrm.Apply(train.Spectrum(0), xn);
+            etalon_ex::ReportStageScales("etalon_raman", ex.etalon(), xn);
+        }
+        {
             // Same resolve as HCNN ThreadPool: 0 = auto (hw-1 workers + caller),
             // 1 = caller only, N > 1 = N workers + caller.
             const unsigned hw = std::thread::hardware_concurrency();

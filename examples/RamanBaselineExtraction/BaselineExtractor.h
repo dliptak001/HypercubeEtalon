@@ -19,6 +19,8 @@ inline EtalonConfig MakeConfig()
     cfg.exciter.input_scaling = 1.0;
     cfg.exciter.weight_scaling = 0.15;
 
+    cfg.readout_scale = 0.165f;
+
     cfg.readout.epochs = 60;
     cfg.readout.dim = 0; // auto
     cfg.readout.num_outputs = static_cast<int>(kN);

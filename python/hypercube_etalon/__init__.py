@@ -64,6 +64,9 @@ class Etalon:
     bypass_exciter : bool
         Skip the transit; features are a copy of the field (ablation path).
         Default: False.
+    readout_scale : float
+        Gain on the transit output (or the copied field under
+        ``bypass_exciter``) before the readout. Finite, > 0. Default: 1.0.
     collect_threads : int
         Workers for bulk collect / scoring: 0 = auto, 1 = serial, K = K workers.
     exciter_seed : int
@@ -137,6 +140,7 @@ class Etalon:
         dim: int,
         *,
         bypass_exciter: bool = False,
+        readout_scale: float = 1.0,
         collect_threads: int = 0,
         exciter_seed: int = 7934791766227647176,
         exciter_input_scaling: float = 0.02,
@@ -186,6 +190,7 @@ class Etalon:
         self._ctor = {
             "dim": dim,
             "bypass_exciter": bypass_exciter,
+            "readout_scale": readout_scale,
             "collect_threads": collect_threads,
             "exciter_seed": exciter_seed,
             "exciter_input_scaling": exciter_input_scaling,
@@ -482,6 +487,11 @@ class Etalon:
     def bypass_exciter(self) -> bool:
         """True when the transit is skipped (features = a copy of the field)."""
         return bool(self._impl.bypass_exciter)
+
+    @property
+    def readout_scale(self) -> float:
+        """Gain on the transit output before the readout."""
+        return float(self._impl.readout_scale)
 
     @property
     def exciter_seed(self) -> int:

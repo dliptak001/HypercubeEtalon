@@ -137,11 +137,12 @@ length and vertex indexing as the input.
 1. Copy the caller's field (the Etalon never writes your buffer).
 2. One etalon transit over the copy (the copy is scaled in place once, then
    swept start by start).
-3. The transit output (length N) **is** the feature row the CNN sees.
+3. The transit output (length N) times `readout_scale` **is** the feature row
+   the CNN sees.
 4. Hand those features to the readout (collect, train, or predict).
 
-With `bypass_exciter = true`, step 2 is skipped and the features are a plain
-copy of the field — the ablation path.
+With `bypass_exciter = true`, step 2 is skipped and the features are the
+field times `readout_scale` — the ablation path.
 
 ```text
 x  (length N, fixed for this sample)
@@ -150,7 +151,7 @@ x  (length N, fixed for this sample)
  Etalon transit  (or a plain copy, when bypass_exciter)
     │
     ▼
- features (N)
+ × readout_scale → features (N)
     │
     ▼
  HCNN readout → class logits or regression values
@@ -166,6 +167,7 @@ x  (length N, fixed for this sample)
 | **input_scaling** | Gain applied once to the field before the transit |
 | **weight_scaling** | Neighbor weights are U(-1, 1) × this |
 | **bypass_exciter** | Skip the transit; features = the field (ablation) |
+| **readout_scale** | Gain between transit output and readout |
 
 Unlike HypercubeWTF there is no `T` / `B` / `readout_slices` machinery: there
 is no orbit, the readout always sees exactly the transit output, and the
@@ -350,6 +352,7 @@ struct EtalonConfig {
     ReadoutConfig readout{};         // leave readout.dim = 0 (auto)
 
     bool bypass_exciter = false;     // features = a copy of the field (ablation)
+    float readout_scale = 1.0f;      // transit → readout gain (finite, > 0)
     size_t collect_threads = 0;      // bulk maps: 0 = auto, 1 = serial, K = K
 };
 ```

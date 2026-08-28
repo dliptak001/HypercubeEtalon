@@ -56,7 +56,8 @@ PYBIND11_MODULE(_core, m)
         // ── Construction ──
         // All etalon + exciter + readout parameters fixed at construction.
         // dim goes to cfg.exciter.dim; readout.dim stays 0 (auto-fill).
-        .def(py::init([](size_t dim, bool bypass_exciter, size_t collect_threads,
+        .def(py::init([](size_t dim, bool bypass_exciter, float readout_scale,
+                         size_t collect_threads,
                          uint64_t exciter_seed, float exciter_input_scaling,
                          float exciter_weight_scaling, size_t exciter_subcube_dim,
                          int readout_num_outputs, const char* readout_task,
@@ -71,6 +72,7 @@ PYBIND11_MODULE(_core, m)
                          bool readout_use_pooling) {
             EtalonConfig cfg;
             cfg.bypass_exciter  = bypass_exciter;
+            cfg.readout_scale   = readout_scale;
             cfg.collect_threads = collect_threads;
             cfg.exciter.dim            = dim;
             cfg.exciter.seed           = exciter_seed;
@@ -119,6 +121,7 @@ PYBIND11_MODULE(_core, m)
         }),
             py::arg("dim"),
             py::arg("bypass_exciter")           = false,
+            py::arg("readout_scale")            = 1.0f,
             py::arg("collect_threads")          = 0ULL,
             py::arg("exciter_seed")             = 7934791766227647176ULL,
             py::arg("exciter_input_scaling")    = 0.02f,
@@ -324,6 +327,9 @@ PYBIND11_MODULE(_core, m)
         .def_property_readonly("collect_threads", &Etalon::CollectThreads)
         .def_property_readonly("bypass_exciter", [](const Etalon& self) {
             return self.config().bypass_exciter;
+        })
+        .def_property_readonly("readout_scale", [](const Etalon& self) {
+            return self.config().readout_scale;
         })
         .def_property_readonly("exciter_seed", [](const Etalon& self) {
             return self.exciter().GetConfig().seed;

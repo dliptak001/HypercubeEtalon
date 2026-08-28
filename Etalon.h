@@ -19,9 +19,16 @@ struct EtalonConfig
     ExciterConfig exciter{};
     ReadoutConfig readout{};
 
-    /// If true, skip the Exciter: readout features are a copy of the length-N
-    /// field. Ablation path; the usual pipeline runs an etalon transit.
+    /// If true, skip the Exciter: readout features are the length-N field
+    /// times @c readout_scale. Ablation path; the usual pipeline runs an
+    /// etalon transit.
     bool bypass_exciter = false;
+
+    /// Gain on the Exciter output (or the copied field under
+    /// @c bypass_exciter) before the readout. The tanh transit bounds the
+    /// Exciter output to (-1, 1); this scales what the readout trains
+    /// against without changing feature shape. Finite, > 0.
+    float readout_scale = 1.0f;
 
     /// Parallel workers for bulk @ref Etalon::CollectBatch / @ref Etalon::Accuracy /
     /// @ref Etalon::R2. 0 = auto (leave 1–2 cores free for the OS/UI),
@@ -40,7 +47,7 @@ struct EtalonConfig
 /// @brief Exciter then Readout: length-N field → features → task outputs.
 ///
 /// ```
-///   x[N]  ──▶  Exciter::ExciteCube  ──▶  y[N]  ──▶  Readout
+///   x[N]  ──▶  Exciter::ExciteCube  ──▶  y[N]  ──▶  * readout_scale  ──▶  Readout
 /// ```
 ///
 /// If @c bypass_exciter is set, y is a copy of x.
@@ -62,7 +69,8 @@ public:
     /// @brief Build the Exciter and Readout. Fills @c readout.dim from the
     ///        Exciter when it is 0.
     /// @throws std::invalid_argument if @c readout.dim is neither 0 nor
-    ///         equal to @c exciter.dim, or @c readout.num_outputs is < 1.
+    ///         equal to @c exciter.dim, @c readout.num_outputs is < 1, or
+    ///         @c readout_scale is not finite and > 0.
     ///         Also throws the Exciter and Readout construction checks.
     explicit Etalon(const EtalonConfig& cfg);
     ~Etalon();

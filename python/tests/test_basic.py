@@ -110,7 +110,25 @@ class TestConstruction:
         assert et.num_outputs == 1
         assert et.subcube_dim == 6
         assert et.bypass_exciter is False
+        assert et.readout_scale == 1.0
         assert et.collect_threads == 0
+
+    def test_invalid_readout_scale(self):
+        with pytest.raises(Exception, match="readout_scale"):
+            Etalon(dim=5, exciter_subcube_dim=4, readout_scale=-1.0)
+        with pytest.raises(Exception, match="readout_scale"):
+            Etalon(dim=5, exciter_subcube_dim=4, readout_scale=0.0)
+
+    def test_readout_scale_scales_features(self):
+        n = 1 << 5
+        x = np.linspace(-1.0, 1.0, n, dtype=np.float32)
+        a = Etalon(dim=5, exciter_subcube_dim=4, exciter_seed=1)
+        b = Etalon(dim=5, exciter_subcube_dim=4, exciter_seed=1,
+                   readout_scale=0.5)
+        a.run(x)
+        b.run(x)
+        np.testing.assert_allclose(
+            b.last_features(), 0.5 * a.last_features(), rtol=1e-6)
 
     def test_repr(self):
         et = Etalon(dim=5, exciter_subcube_dim=4)
