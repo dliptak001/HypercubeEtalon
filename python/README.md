@@ -51,6 +51,8 @@ required for the CNN.
   <a href="https://github.com/dliptak001/HypercubeEtalon"><strong>HypercubeEtalon</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/dliptak001/HypercubeCascade"><strong>HypercubeCascade</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/dliptak001/HypercubeLCN"><strong>HypercubeLCN</strong></a>
 </p>
 
 HypercubeEtalon is an experiment in the **HypercubeAI** project — our quest to
@@ -402,6 +404,7 @@ More notes:
 - **[HypercubeCNN](https://github.com/dliptak001/HypercubeCNN)** — cube-native conv stack; Etalon’s trainable head.
 - **[HypercubeESN](https://github.com/dliptak001/HypercubeESN)** — echo-state / reservoir computing on streams.
 - **[HypercubeHopfield](https://github.com/dliptak001/HypercubeHopfield)** — Hopfield-style dynamics on the cube.
+- **[HypercubeLCN](https://github.com/dliptak001/HypercubeLCN)** — locally connected network on the cube; every weight trained, no frozen stages.
 
 ---
 
