@@ -1,5 +1,11 @@
 # Hypercube Etalon
 
+[![Build wheels](https://github.com/dliptak001/HypercubeEtalon/actions/workflows/wheels.yml/badge.svg)](https://github.com/dliptak001/HypercubeEtalon/actions/workflows/wheels.yml)
+[![PyPI](https://img.shields.io/pypi/v/hypercube-etalon)](https://pypi.org/project/hypercube-etalon/)
+[![Python](https://img.shields.io/pypi/pyversions/hypercube-etalon)](https://pypi.org/project/hypercube-etalon/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
+
 HypercubeEtalon processes spatial data of the kind presented to a CNN.
 It is built from three core classes.
 
@@ -45,6 +51,8 @@ required for the CNN.
   <a href="https://github.com/dliptak001/HypercubeEtalon"><strong>HypercubeEtalon</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/dliptak001/HypercubeCascade"><strong>HypercubeCascade</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/dliptak001/HypercubeLCN"><strong>HypercubeLCN</strong></a>
 </p>
 
 HypercubeEtalon is an experiment in the **HypercubeAI** project — our quest to
