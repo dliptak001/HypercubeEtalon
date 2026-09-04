@@ -55,6 +55,12 @@ required for the CNN.
   <a href="https://github.com/dliptak001/HypercubeLCN"><strong>HypercubeLCN</strong></a>
 </p>
 
+<p align="center">
+  📄 Foundational paper:
+  <a href="https://github.com/dliptak001/HypercubeEtalon/blob/main/docs/Boolean_hypercubes_as_a_neural_substrate.pdf"><em>Boolean Hypercubes as a Neural Substrate</em></a>
+  (D.&nbsp;C.&nbsp;Liptak, 2026)
+</p>
+
 HypercubeEtalon is an experiment in the **HypercubeAI** project — our quest to
 systematically re-implement classical neural architectures on a Boolean
 hypercube topology instead of Euclidean grids or random graphs. The central

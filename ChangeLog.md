@@ -1,5 +1,8 @@
 # HypercubeEtalon - Change Log
 
+## v1.0.3 (Sep 4, 2026)
+- Add the foundational paper "Boolean Hypercubes as a Neural Substrate" (D. C. Liptak, 2026) to docs/ and link it from the HypercubeAI ecosystem section of the root and Python READMEs.
+
 ## v1.0.2 (Aug 22, 2026)
 - Compare the Raman baseline extraction against the HypercubeCascade and HypercubeWTF siblings: three-host results table and training profiles in the example README, and the root and Python READMEs.
 
